@@ -9,22 +9,65 @@ from datetime import datetime
 
 config = dotenv_values(".env")
 
-institutionname = "ut-austin"
-outputcsvpath = "outputs/simple-github-account-url-list-" + datetime.now().strftime("%Y-%m-%d") + "-" + institutionname + ".csv"
-outputcsvcolumns = ["html_url", "name", "company", "email", "bio","public_repos", "followers", "created_at", "updated_at", "predicted general UT Austin connection/role", "additional predicted info", "query"]
-pagelimit = 2
-resultsperpage = 50
+institutionname = "UT Austin"
+institutionnamepermutations = ["UT Austin", "University of Texas at Austin", "UT", "University of Texas, Austin", "UT-Austin"]
+simplifiedinstitutionname = institutionname.replace(" ","-").lower().strip()
+institutioncity = "Austin"
+institutionemaildomain = "utexas.edu"
+departmentandschoollistfilepath = "inputs/departmentandschoollist.csv"
+enterprisegithublistfilepath = "inputs/ut-enterprise-github-faculty-20240214.csv"
+githubaccountdetailscsvpath = "outputs/simple-github-account-url-list-" + datetime.now().strftime("%Y-%m-%d") + "-" + simplifiedinstitutionname + ".csv"
+resultsperpage = 50 #max of 50
+pagelimit = 20
 minimumfollowers = 1
 minimumrepos = 1
+detaillevel = "limiteddetail"
+
+
+
+
+
+####EXAMPLE QUERY
+# querylist.append("firstpartofname+firstpartofname+followers:>=" + str(minimumfollowers) + "+repos:>=" + str(minimumrepos))
+
+# update this list of queries to fit your institution
+querylist = []
+querylist.append("ut+austin+followers:>=" + str(minimumfollowers) + "+repos:>=" + str(minimumrepos))
+querylist.append("university+of+texas+at+austin+followers:>=" + str(minimumfollowers) + "+repos:>=" + str(minimumrepos))
+querylist.append("location:%22university+of+texas+at+austin%22&followers:>=" + str(minimumfollowers) + "&repos:>=" + str(minimumrepos))
+querylist.append("location:\"ut+austin\"&followers:>=" + str(minimumfollowers) + "&repos:>=" + str(minimumrepos))
+querylist.append("location%3AAustin+followers%3A%3E%3D40+repos%3A%3E%3D1&type=Users&ref=advsearch&l=&l=&s=followers&o=desc")
+querylist.append("texas+advanced+computing+center+in:bio&type=Users")
+
+
+
+githubaccountdetailscsvcolumns = []
+if detaillevel == "fulldetail":
+    githubaccountdetailscsvcolumns.append("name")
+githubaccountdetailscsvcolumns.append("html_url")
+githubaccountdetailscsvcolumns.append("company")
+githubaccountdetailscsvcolumns.append("email")
+githubaccountdetailscsvcolumns.append("bio")
+githubaccountdetailscsvcolumns.append("public_repos")
+githubaccountdetailscsvcolumns.append("followers")
+githubaccountdetailscsvcolumns.append("created_at")
+githubaccountdetailscsvcolumns.append("updated_at")
+githubaccountdetailscsvcolumns.append("predicted general " + institutionname + " connection/role")
+githubaccountdetailscsvcolumns.append("additional predicted info")
+githubaccountdetailscsvcolumns.append("query")
+githubaccountdetailscsvcolumns.append("querydate")
+
+
+githubrepodetailscsvpath = "outputs/simple-github-repo-url-list-" + datetime.now().strftime("%Y-%m-%d") + "-" + simplifiedinstitutionname + ".csv"
+githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues']
+
+
+uniquerepolist = []
 
 
 usercharacteristicstoprocess = ['login','id','avatar_url','url','html_url','name','company','blog','location','email','bio','public_repos','public_gists','followers','following','created_at','updated_at','organizations_url','type']
-querylist = []
-querylist.append("ut+austin+followers:>=" + str(minimumfollowers) + "+repos:>=" + str(minimumrepos))
-# querylist.append("university+of+texas+at+austin+followers:>=" + str(minimumfollowers) + "+repos:>=" + str(minimumrepos))
-# querylist.append("location:%22university+of+texas+at+austin%22&followers:>=" + str(minimumfollowers) + "&repos:>=" + str(minimumrepos))
-# querylist.append("location:\"ut+austin\"&followers:>=" + str(minimumfollowers) + "&repos:>=" + str(minimumrepos))
-# querylist.append("location%3AAustin+followers%3A%3E%3D40+repos%3A%3E%3D1&type=Users&ref=advsearch&l=&l=&s=followers&o=desc")
+
+repocharacteristicstoprocess = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','visibility','forks','topics','open_issues']
 
 
 
@@ -32,18 +75,28 @@ overlappingusersacrossqueries = []
 uniquerusersfound = []
 apiendpoint = "users"
 
+repolanguagelist = []
+repolicenselist = []
+repostargazerlist = []
+repowatcherlist = []
+repoforklist = []
+
+finalgithubaccountdetailscsvrows = []
+finalgithubrepodetailscsvrows = []
+
+
 
 try:
     os.mkdir("inputs")
 except:
-    print("inputs directory already exists")
+    print("verified: inputs directory already exists")
 try:
     os.mkdir("outputs")
 except:
-    print("outputs directory already exists")
+    print("verified: outputs directory already exists")
 
-#ADD ROLES FOR UT BOOTCAMP STUDENT, PHD STUDENT, ALUMNI, TURING SCHOLAR, ORGANIZATION (AS OPPOSED TO INDIVIDUAL),
-#FINAL ROLES: current student, current doctoral student,
+
+
 def predictrole(parseddesc, fulldesc):
     prediction = ""
     additionalinfo = ""
@@ -72,6 +125,12 @@ def predictrole(parseddesc, fulldesc):
         if "alumn" in desc or "graduate of" in desc or "previously" in desc or "'2" in desc or "'1" in desc or "'0" in desc or "completed" in desc:
             prediction = "Alum"
 
+        if "boot" in desc and "camp" in desc:
+            prediction = "UT bootcamp student"
+
+        if "turing" in desc and "scholar" in desc:
+            prediction = "Student"
+            additionalinfo += "Undergraduate student (Turing Scholar)"
 
     predictionlist = [prediction,additionalinfo]
 
@@ -93,6 +152,7 @@ for query in querylist:
         data = requests.get(queryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
 
         response = json.loads(data.content)
+
         try:
             responselinkheaders = data.headers["Link"]
             pageinfo = responselinkheaders.split(",")
@@ -134,7 +194,7 @@ for query in querylist:
 
                     utaffiliated = False
 
-                    if 'location%3AAustin+' in queryurl:
+                    if str('location%3A' + institutioncity + '+') in queryurl:
 
                         for k, v in u.items():
                             if k == "url":
@@ -147,20 +207,22 @@ for query in querylist:
                                     try:
                                         if k2 == "email":
                                             print("   email: " + str(v2))
-                                            if "utexas.edu" in v2:
+                                            if institutionemaildomain in v2:
                                                 utaffiliated = True
 
                                         if k2 == "company":
                                             print("   company: " + str(v2))
-                                            if "ut austin" in v2.lower() or "university of texas at austin" in v2.lower() or "UT" in v2:
-                                                utaffiliated = True
+
+                                            for permutation in institutionnamepermutations:
+                                                if permutation.lower() in v2.lower():
+                                                    utaffiliated = True
 
                                     except Exception as e:
                                         pass
 
 
 
-                    if utaffiliated or 'location%3AAustin+' not in queryurl:
+                    if str('location%3A' + institutioncity + '+') not in queryurl:
 
                         useralreadyfound = False
 
@@ -169,6 +231,7 @@ for query in querylist:
                         orgaccount = False
                         for k, v in u.items():
                             if k in usercharacteristicstoprocess or "*" in usercharacteristicstoprocess:
+                                
                                 # print(k + ":  " + str(v))
 
                                 if k == "login":
@@ -184,6 +247,7 @@ for query in querylist:
                                         orgaccount = True
 
 
+
                                 if k == "url":
                                     accountdetailsurl = v
                                     accountdetailsdata = requests.get(accountdetailsurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken']})
@@ -191,7 +255,7 @@ for query in querylist:
                                     accountdetailsdatalist = json.loads(accountdetailsdatalist)
 
                                     for k2, v2 in accountdetailsdatalist.items():
-                                        if k2 in outputcsvcolumns:
+                                        if k2 in githubaccountdetailscsvcolumns:
                                             try:
                                                 if k2 == "name":
                                                     v2 = v2.title().replace("\n","")
@@ -202,48 +266,59 @@ for query in querylist:
                                                     csvrowdictionary[k2] = v2
 
                                                 elif k2 == "company":
-                                                    v2 = v2.replace("@","").replace("\n","")
-                                                    csvrowdictionary[k2] = v2
+                                                    if detaillevel == "fulldetail":
+                                                        v2 = v2.replace("@","").replace("\n","")
+                                                        csvrowdictionary[k2] = v2
+                                                    else:
+                                                        csvrowdictionary[k2] = ""
 
                                                 elif k2 == "email":
                                                     if v2 is None or "@" not in str(v2):
                                                         emailaddress = ""
                                                     else:
                                                         emailaddress = str(v2).replace("\n","")
-                                                    csvrowdictionary[k2] = emailaddress
 
+                                                    if detaillevel == "fulldetail":
+                                                        csvrowdictionary[k2] = emailaddress
+
+                                                    else:
+                                                        csvrowdictionary[k2] = ""
 
 
                                                 elif k2 == "bio":
-                                                    utaustinrole = ""
+
+                                                    institutionrole = ""
                                                     if " at university of" in v2.lower():
-                                                        utaustinrole = v2.lower().split(" at university of")[0]
+                                                        institutionrole = v2.lower().split(" at university of")[0]
                                                     elif " at the university of" in v2.lower():
-                                                        utaustinrole = v2.lower().split(" at the university of")[0]
+                                                        institutionrole = v2.lower().split(" at the university of")[0]
                                                     elif " at ut" in v2.lower():
-                                                        utaustinrole = v2.lower().split(" at ut")[0]
+                                                        institutionrole = v2.lower().split(" at ut")[0]
                                                     elif "@" in v2.lower():
-                                                        utaustinrole = v2.lower().split("@")[0].strip()
+                                                        institutionrole = v2.lower().split("@")[0].strip()
                                                     elif ", the university of" in v2.lower():
-                                                        utaustinrole = v2.lower().split(", the university of")[0]
+                                                        institutionrole = v2.lower().split(", the university of")[0]
                                                     elif "- university of" in v2.lower():
-                                                        utaustinrole = v2.lower().split("- university of")[0]
+                                                        institutionrole = v2.lower().split("- university of")[0]
                                                     else:
                                                         pass
 
-                                                    utaustinrole.replace("i am a ","")
+                                                    institutionrole.replace("i am a ","")
 
-                                                    csvrowdictionary["bio"] = v2
+                                                    if detaillevel == "fulldetail":
+                                                        csvrowdictionary["bio"] = v2
+                                                    else:
+                                                        csvrowdictionary["bio"] = ""
 
                                                     if orgaccount:
                                                         csvrow.extend(["organization",""])
-                                                        csvrowdictionary["predicted general UT Austin connection/role"] = "organization"
+                                                        csvrowdictionary["predicted general "+ institutionname +" connection/role"] = "organization"
                                                         csvrowdictionary["additional predicted info"] = ""
 
                                                     else:
-                                                        csvrowdictionary["predicted general UT Austin connection/role"] = predictrole(utaustinrole, v2.lower())[0]
-                                                        csvrowdictionary["additional predicted info"] = predictrole(utaustinrole, v2.lower())[1]
-                                                        csvrow.extend(predictrole(utaustinrole, v2.lower()))
+                                                        csvrowdictionary["predicted general "+ institutionname +" connection/role"] = predictrole(institutionrole, v2.lower())[0]
+                                                        csvrowdictionary["additional predicted info"] = predictrole(institutionrole, v2.lower())[1]
+                                                        csvrow.extend(predictrole(institutionrole, v2.lower()))
 
                                                 else:
                                                     csvrowdictionary[k2] = v2
@@ -255,10 +330,124 @@ for query in querylist:
                                         if k in usercharacteristicstoprocess or "*" in usercharacteristicstoprocess:
                                             print("   " + k2 + ": " + str(v2))
 
+                                            if k2 == "repos_url":
+                                                try:
+                                                    reposqueryurl = v2
+                                                    reposdata = requests.get(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+                                                    reposdatalist = json.loads(reposdata.content.decode("latin-1"))
+
+
+
+                                                    for reponum, repo in enumerate(reposdatalist):
+                                                        keycount = 0
+                                                        print("    Data for repo #" + str(reponum + 1) + " out of " + str(len(reposdatalist)))
+                                                        repocsvrow = []
+
+                                                        for k2, v2 in repo.items():
+
+                                                            if k2 in repocharacteristicstoprocess:
+
+                                                                try:
+                                                                    license = ""
+                                                                    if repo['html_url'] not in uniquerepolist:
+                                                                        keycount += 1
+
+                                                                        print("        " + str(keycount) + "  " +  k2 + ": " + str(v2))
+
+                                                                        if k2 == "language":
+                                                                            repolanguagelist.append(str(v2))
+                                                                            repocsvrow.append(str(v2))
+
+                                                                        elif k2 == "license":
+                                                                            if v2 == "None":
+                                                                                license = "None"
+                                                                                repolicenselist.append("None")
+                                                                                repocsvrow.append("None")
+                                                                            else:
+                                                                                repolicenselist.append(v2['name'])
+                                                                                repocsvrow.append(v2['name'])
+                                                                                license = v2['name']
+
+                                                                        elif k2 == "stargazers_count":
+                                                                            repostargazerlist.append(v2)
+                                                                            repocsvrow.append(v2)
+
+                                                                        elif k2 == "watchers_count":
+                                                                            repowatcherlist.append(v2)
+
+                                                                            repocsvrow.append(v2)
+
+                                                                        elif k2 == "forks":
+                                                                            repoforklist.append(v2)
+
+                                                                            repocsvrow.append(v2)
+
+                                                                        else:
+                                                                            repocsvrow.append(v2)
+                                                                except:
+                                                                    pass
+
+                                                        print(str(len(repocsvrow)) + "   " + str(repocsvrow))
+
+                                                        #if licensing information not provided, add default license value of ""
+                                                        if len(repocsvrow) < 21:
+                                                            repocsvrow.insert(15,license)
+
+                                                        finalgithubrepodetailscsvrows.append(repocsvrow)
+                                                        print("\n\n")
+
+                                                except Exception as e:
+                                                    print(str(e))
+
                                     print()
+
+                                # if k == "organizations_url":
+                                #     try:
+                                #         orgsqueryurl = v
+                                #         orgsdata = requests.get(orgsqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken']})
+                                #         orgsdatalist = json.loads(orgsdata.content.decode("latin-1"))
+                                #         for org in list(orgsdatalist):
+                                #             for k2, v2 in org.items():
+                                #                 print("      " + k2 + ": " + str(v2))
+                                #             print()
+                                #
+                                #
+                                #     except Exception as e:
+                                #         print(str(e))
+
+                                # if k == "starred_url":
+                                #     starredqueryurl = v
+                                #     starreddata = requests.get(starredqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+                                #     starreddatalist = json.loads(starreddata.content.decode("latin-1"))
+                                #
+                                #     for starred in list(starreddatalist):
+                                #         for k2, v2 in starred.items():
+                                #             print("   " + k2 + ": " + str(v2))
+                                #         print()
+
+                                # if k == "followers_url":
+                                #     followersqueryurl = v
+                                #     followersdata = requests.get(followersqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+                                #     followersdatalist = json.loads(followersdata.content.decode("latin-1"))
+                                #
+                                #     for follower in list(followersdatalist):
+                                #         for k2, v2 in follower.items():
+                                #             print("   " + k2 + ": " + str(v2))
+                                #         print()
+
+                                # if k == "following_url":
+                                #     followingqueryurl = v
+                                #     followingdata = requests.get(followingqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+                                #     followingdatalist = json.loads(followingdata.content.decode("latin-1"))
+                                #
+                                #     for following in list(followingdatalist):
+                                #         for k2, v2 in following.items():
+                                #             print("   " + k2 + ": " + str(v2))
+                                #         print()
 
                         if not useralreadyfound:
                             csvrowdictionary['query'] = query
+                            csvrowdictionary['querydate'] = datetime.now().strftime("%Y-%m-%d")
                             csvrowdictionarylist.append(csvrowdictionary)
 
                         print("\n\n\n")
@@ -269,10 +458,11 @@ for query in querylist:
     except Exception as e:
         print("ERROR: " + str(e))
 
-finalfinalcsvrows = []
+
+
 for obj in csvrowdictionarylist:
     newrow = []
-    for columnname in outputcsvcolumns:
+    for columnname in githubaccountdetailscsvcolumns:
         matchfound = False
         for k,v in obj.items():
             if k == columnname:
@@ -283,22 +473,53 @@ for obj in csvrowdictionarylist:
                     newrow.append(v)
         if not matchfound:
             newrow.append("")
-    finalfinalcsvrows.append(newrow)
+    finalgithubaccountdetailscsvrows.append(newrow)
 
 
-print("preparing to generate " + outputcsvpath)
-print("estimated valid rows to create in CSV: " + str(len(csvoutputrows)))
 
-with open(outputcsvpath,"w", newline="") as opencsv:
+print("\n\n" + "preparing to generate " + githubaccountdetailscsvpath)
+print("estimated valid rows to create in GitHub account details CSV: " + str(len(csvoutputrows)))
+
+with open(githubaccountdetailscsvpath,"w", newline="") as opencsv:
 
     csvwriter = csv.writer(opencsv)
 
-    csvwriter.writerow(outputcsvcolumns)
+    csvwriter.writerow(githubaccountdetailscsvcolumns)
 
-    for csvrow in finalfinalcsvrows:
+    for i, csvrow in enumerate(finalgithubaccountdetailscsvrows):
         try:
             csvwriter.writerow(csvrow)
-            print("written to CSV successfully: " + str(csvrow))
+            if i%10 == 0:
+                print("row #" + str(i) + " written successfully")
+
+        except Exception as e:
+            print("ERROR: " + str(e))
+
+
+
+print("\n\n" + "preparing to generate " + githubrepodetailscsvpath)
+print("estimated valid rows to create in GitHub repo details CSV: " + str(len(csvoutputrows)))
+
+topstarredrepos = []
+topwatchedrepos = []
+topforkedrepos = []
+with open(githubrepodetailscsvpath,"w", newline="") as opencsv:
+
+    csvwriter = csv.writer(opencsv)
+
+    csvwriter.writerow(githubrepodetailscsvcolumns)
+
+    for i, csvrow in enumerate(finalgithubrepodetailscsvrows):
+
+        try:
+            csvwriter.writerow(csvrow)
+
+            stargazercount = csvrow[8]
+            watchercount = csvrow[9]
+            forkcount = csvrow[11]
+
+            if i%10 == 0:
+                print("row #" + str(i) + " written successfully")
 
         except Exception as e:
             print("ERROR: " + str(e))
@@ -306,4 +527,42 @@ with open(outputcsvpath,"w", newline="") as opencsv:
 
 
 
+
+
+
+
 print("\n\nNumber of overlapping users across queries: " + str(len(overlappingusersacrossqueries)))
+
+
+
+print("\n\n")
+print("Programming language statistics:")
+languagecountlist = []
+
+for language in set(repolanguagelist):
+    languagecountlist.append(repolanguagelist.count(language))
+
+for i in reversed(range(max(languagecountlist) + 1)):
+    for language in set(repolanguagelist):
+        try:
+            if repolanguagelist.count(language) == i and i >= 5:
+                print("   " + str(repolanguagelist.count(language)) + (" " * (7-len(str(repolanguagelist.count(language))))) + language)
+        except Exception as e:
+            pass
+
+
+print("\n\n")
+print("License statistics:")
+licensecountlist = []
+
+for license in set(repolicenselist):
+    licensecountlist.append(repolicenselist.count(license))
+
+for i in reversed(range(max(licensecountlist) + 1)):
+    for license in set(repolicenselist):
+        try:
+            if repolicenselist.count(license) == i:
+                print("   " + str(repolicenselist.count(license)) + (" " * (7-len(str(repolanguagelist.count(language))))) + license)
+
+        except Exception as e:
+            print(str(e))
