@@ -3,28 +3,18 @@ import csv
 import pandas as pd
 import requests
 import json
-from dotenv import dotenv_values
 from datetime import datetime
 
 
-config = dotenv_values(".env")
-
-institutionname = "UT Austin"
-institutionnamepermutations = ["UT Austin", "University of Texas at Austin", "UT", "University of Texas, Austin", "UT-Austin"]
-simplifiedinstitutionname = institutionname.replace(" ","-").lower().strip()
-institutioncity = "Austin"
-institutionemaildomain = "utexas.edu"
-departmentandschoollistfilepath = "inputs/departmentandschoollist.csv"
-enterprisegithublistfilepath = "inputs/ut-enterprise-github-faculty-20240214.csv"
-githubaccountdetailscsvpath = "outputs/simple-github-account-url-list-" + datetime.now().strftime("%Y-%m-%d") + "-" + simplifiedinstitutionname + ".csv"
-resultsperpage = 50 #max of 50
-pagelimit = 20
-minimumfollowers = 1
-minimumrepos = 1
-detaillevel = "limiteddetail"
 
 
+with open(".env") as envfile:
+    config = json.loads(envfile.read())
 
+
+simplifiedinstitutionname = config['institutionname'].replace(" ","-").lower().strip()
+config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d"))
+config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d"))
 
 
 ####EXAMPLE QUERY
@@ -32,18 +22,18 @@ detaillevel = "limiteddetail"
 
 # update this list of queries to fit your institution
 querylist = []
-querylist.append("ut+austin+followers:>=" + str(minimumfollowers) + "+repos:>=" + str(minimumrepos))
-querylist.append("university+of+texas+at+austin+followers:>=" + str(minimumfollowers) + "+repos:>=" + str(minimumrepos))
-querylist.append("location:%22university+of+texas+at+austin%22&followers:>=" + str(minimumfollowers) + "&repos:>=" + str(minimumrepos))
-querylist.append("location:\"ut+austin\"&followers:>=" + str(minimumfollowers) + "&repos:>=" + str(minimumrepos))
+querylist.append("ut+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
+querylist.append("university+of+texas+at+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
+querylist.append("location:%22university+of+texas+at+austin%22&followers:>=" + str(config['minimumfollowers']) + "&repos:>=" + str(config['minimumrepos']))
+querylist.append("location:\"ut+austin\"&followers:>=" + str(config['minimumfollowers']) + "&repos:>=" + str(config['minimumrepos']))
 querylist.append("location%3AAustin+followers%3A%3E%3D40+repos%3A%3E%3D1&type=Users&ref=advsearch&l=&l=&s=followers&o=desc")
 querylist.append("texas+advanced+computing+center+in:bio&type=Users")
 
 
 
 githubaccountdetailscsvcolumns = []
-if detaillevel == "fulldetail":
-    githubaccountdetailscsvcolumns.append("name")
+# if config['detaillevel'] == "fulldetail":
+githubaccountdetailscsvcolumns.append("name")
 githubaccountdetailscsvcolumns.append("html_url")
 githubaccountdetailscsvcolumns.append("company")
 githubaccountdetailscsvcolumns.append("email")
@@ -52,7 +42,7 @@ githubaccountdetailscsvcolumns.append("public_repos")
 githubaccountdetailscsvcolumns.append("followers")
 githubaccountdetailscsvcolumns.append("created_at")
 githubaccountdetailscsvcolumns.append("updated_at")
-githubaccountdetailscsvcolumns.append("predicted general " + institutionname + " connection/role")
+githubaccountdetailscsvcolumns.append("predicted general " + config['institutionname'] + " connection/role")
 githubaccountdetailscsvcolumns.append("additional predicted info")
 githubaccountdetailscsvcolumns.append("query")
 githubaccountdetailscsvcolumns.append("querydate")
@@ -90,10 +80,16 @@ try:
     os.mkdir("inputs")
 except:
     print("verified: inputs directory already exists")
+
 try:
     os.mkdir("outputs")
 except:
     print("verified: outputs directory already exists")
+
+try:
+    os.mkdir("logs")
+except:
+    print("verified: logs directory already exists")
 
 
 
@@ -146,12 +142,15 @@ githubaccountschecked = 0
 for query in querylist:
 
     try:
-        queryurl = "https://api.github.com/search/"+ apiendpoint +"?q="+ query +"&per_page=" + str(resultsperpage)
+        queryurl = "https://api.github.com/search/"+ apiendpoint +"?q="+ query +"&per_page=" + str(config['resultsperpage'])
 
         print(queryurl)
+
         data = requests.get(queryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
 
         response = json.loads(data.content)
+
+        print(response)
 
         try:
             responselinkheaders = data.headers["Link"]
@@ -161,21 +160,22 @@ for query in querylist:
             lasturl = pageinfo[1].replace("<","").split(">; ")[0].strip()
             lastpagenum = lasturl.split("=")[-1]
 
-            print("total count for query '"+query+"' = " + str(response['total_count']))
+            print("total count for query '" + query + "' = " + str(response['total_count']))
             print("next page = " + nexturl)
             print("lastpage = " + lasturl)
             print()
+
         except:
             print("less than one page of results returned")
 
         pagecount = 0
 
-        while pagecount < pagelimit:
+        while pagecount < config['pagelimit']:
 
             try:
                 pagecount += 1
 
-                queryurl = "https://api.github.com/search/"+ apiendpoint +"?q="+ query +"&per_page=" + str(resultsperpage) + "&page=" + str(pagecount)
+                queryurl = "https://api.github.com/search/"+ apiendpoint +"?q="+ query +"&per_page=" + str(config['resultsperpage']) + "&page=" + str(pagecount)
 
                 print("queryurl = " + queryurl)
 
@@ -194,7 +194,7 @@ for query in querylist:
 
                     utaffiliated = False
 
-                    if str('location%3A' + institutioncity + '+') in queryurl:
+                    if str('location%3A' + config['institutioncity'] + '+') in queryurl:
 
                         for k, v in u.items():
                             if k == "url":
@@ -207,13 +207,13 @@ for query in querylist:
                                     try:
                                         if k2 == "email":
                                             print("   email: " + str(v2))
-                                            if institutionemaildomain in v2:
+                                            if config['institutionemaildomain'] in v2:
                                                 utaffiliated = True
 
                                         if k2 == "company":
                                             print("   company: " + str(v2))
 
-                                            for permutation in institutionnamepermutations:
+                                            for permutation in config['institutionnamepermutations']:
                                                 if permutation.lower() in v2.lower():
                                                     utaffiliated = True
 
@@ -222,7 +222,7 @@ for query in querylist:
 
 
 
-                    if str('location%3A' + institutioncity + '+') not in queryurl:
+                    if str('location%3A' + config['institutioncity'] + '+') not in queryurl:
 
                         useralreadyfound = False
 
@@ -231,7 +231,7 @@ for query in querylist:
                         orgaccount = False
                         for k, v in u.items():
                             if k in usercharacteristicstoprocess or "*" in usercharacteristicstoprocess:
-                                
+
                                 # print(k + ":  " + str(v))
 
                                 if k == "login":
@@ -312,11 +312,11 @@ for query in querylist:
 
                                                     if orgaccount:
                                                         csvrow.extend(["organization",""])
-                                                        csvrowdictionary["predicted general "+ institutionname +" connection/role"] = "organization"
+                                                        csvrowdictionary["predicted general "+ config['institutionname'] +" connection/role"] = "organization"
                                                         csvrowdictionary["additional predicted info"] = ""
 
                                                     else:
-                                                        csvrowdictionary["predicted general "+ institutionname +" connection/role"] = predictrole(institutionrole, v2.lower())[0]
+                                                        csvrowdictionary["predicted general "+ config['institutionname'] +" connection/role"] = predictrole(institutionrole, v2.lower())[0]
                                                         csvrowdictionary["additional predicted info"] = predictrole(institutionrole, v2.lower())[1]
                                                         csvrow.extend(predictrole(institutionrole, v2.lower()))
 
@@ -477,10 +477,10 @@ for obj in csvrowdictionarylist:
 
 
 
-print("\n\n" + "preparing to generate " + githubaccountdetailscsvpath)
+print("\n\n" + "preparing to generate " + config['githubaccountdetailscsvpath'])
 print("estimated valid rows to create in GitHub account details CSV: " + str(len(csvoutputrows)))
 
-with open(githubaccountdetailscsvpath,"w", newline="") as opencsv:
+with open(config['githubaccountdetailscsvpath'],"w", newline="") as opencsv:
 
     csvwriter = csv.writer(opencsv)
 
@@ -497,13 +497,14 @@ with open(githubaccountdetailscsvpath,"w", newline="") as opencsv:
 
 
 
-print("\n\n" + "preparing to generate " + githubrepodetailscsvpath)
+print("\n\n" + "preparing to generate " + config['githubrepodetailscsvpath'])
 print("estimated valid rows to create in GitHub repo details CSV: " + str(len(csvoutputrows)))
 
 topstarredrepos = []
 topwatchedrepos = []
 topforkedrepos = []
-with open(githubrepodetailscsvpath,"w", newline="") as opencsv:
+
+with open(config['githubrepodetailscsvpath'],"w", newline="") as opencsv:
 
     csvwriter = csv.writer(opencsv)
 
