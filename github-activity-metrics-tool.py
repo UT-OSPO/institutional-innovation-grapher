@@ -4,9 +4,13 @@ import pandas as pd
 import requests
 import json
 from datetime import datetime
-
 from dateutil.relativedelta import relativedelta
 
+
+
+
+if not os.path.isdir("outputs/" + datetime.now().strftime("%Y-%m-%d")):
+    os.mkdir("outputs/" + datetime.now().strftime("%Y-%m-%d"))
 
 
 with open(".env") as envfile:
@@ -18,8 +22,6 @@ config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].re
 config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d"))
 
 
-if not os.path.isdir("outputs/" + datetime.now().strftime("%Y-%m-%d")):
-    os.mkdir("outputs/" + datetime.now().strftime("%Y-%m-%d"))
 
 
 ####EXAMPLE QUERY
@@ -53,7 +55,7 @@ githubaccountdetailscsvcolumns.append("query")
 githubaccountdetailscsvcolumns.append("querydate")
 
 
-githubrepodetailscsvpath = "outputs/simple-github-repo-url-list-" + datetime.now().strftime("%Y-%m-%d") + "-" + simplifiedinstitutionname + ".csv"
+
 githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues']
 
 
@@ -271,7 +273,7 @@ for query in querylist:
                                                     csvrowdictionary[k2] = v2
 
                                                 elif k2 == "company":
-                                                    if detaillevel == "fulldetail":
+                                                    if config['detaillevel'] == "fulldetail":
                                                         v2 = v2.replace("@","").replace("\n","")
                                                         csvrowdictionary[k2] = v2
                                                     else:
@@ -283,7 +285,7 @@ for query in querylist:
                                                     else:
                                                         emailaddress = str(v2).replace("\n","")
 
-                                                    if detaillevel == "fulldetail":
+                                                    if config['detaillevel'] == "fulldetail":
                                                         csvrowdictionary[k2] = emailaddress
 
                                                     else:
@@ -310,7 +312,7 @@ for query in querylist:
 
                                                     institutionrole.replace("i am a ","")
 
-                                                    if detaillevel == "fulldetail":
+                                                    if config['detaillevel'] == "fulldetail":
                                                         csvrowdictionary["bio"] = v2
                                                     else:
                                                         csvrowdictionary["bio"] = ""
@@ -345,21 +347,21 @@ for query in querylist:
 
                                                     for reponum, repo in enumerate(reposdatalist):
                                                         keycount = 0
-                                                        print("    Data for repo #" + str(reponum + 1) + " out of " + str(len(reposdatalist)))
+                                                        print("       Data for repo #" + str(reponum + 1) + " out of " + str(len(reposdatalist)))
                                                         repocsvrow = []
 
                                                         processrepo = False
 
 
-                                                        yearofmostrecentupdate = repo['updated_at'].lower().splite("t")[0].split("-")[0]
-                                                        monthofmostrecentupdate = repo['updated_at'].lower().splite("t")[0].split("-")[1]
-                                                        dayofmostrecentupdate = repo['updated_at'].lower().splite("t")[0].split("-")[2]
+                                                        yearofmostrecentupdate = int(repo['updated_at'].lower().split("t")[0].split("-")[0])
+                                                        monthofmostrecentupdate = int(repo['updated_at'].lower().split("t")[0].split("-")[1])
+                                                        dayofmostrecentupdate = int(repo['updated_at'].lower().split("t")[0].split("-")[2])
 
                                                         # Example time: 2021-04-24T15:13:29Z
                                                         datetimeofmostrecentupdate = datetime.strptime(repo['updated_at'], '%Y-%m-%dT%H:%M:%SZ')
 
                                                         monthssincemostrecentupdate = float(relativedelta(datetime.now(), datetime(yearofmostrecentupdate,monthofmostrecentupdate,dayofmostrecentupdate,0,0,0,0)).months)
-                                                        
+
 
                                                         if monthssincemostrecentupdate < config['githubrepolastupdatethresholdinmonths']:
                                                             processrepo = True
@@ -376,7 +378,7 @@ for query in querylist:
                                                                     if repo['html_url'] not in uniquerepolist:
                                                                         keycount += 1
 
-                                                                        print("        " + str(keycount) + "  " +  k2 + ": " + str(v2))
+                                                                        print("            " + str(keycount) + "  " +  k2 + ": " + str(v2))
 
                                                                         if k2 == "language":
                                                                             repolanguagelist.append(str(v2))
@@ -502,7 +504,7 @@ for obj in csvrowdictionarylist:
 
 
 print("\n\n" + "preparing to generate " + config['githubaccountdetailscsvpath'])
-print("estimated valid rows to create in GitHub account details CSV: " + str(len(csvoutputrows)))
+print("estimated valid rows to create in GitHub account details CSV: " + str(len(finalgithubaccountdetailscsvrows)))
 
 with open(config['githubaccountdetailscsvpath'],"w", newline="") as opencsv:
 
@@ -522,7 +524,7 @@ with open(config['githubaccountdetailscsvpath'],"w", newline="") as opencsv:
 
 
 print("\n\n" + "preparing to generate " + config['githubrepodetailscsvpath'])
-print("estimated valid rows to create in GitHub repo details CSV: " + str(len(csvoutputrows)))
+print("estimated valid rows to create in GitHub repo details CSV: " + str(len(finalgithubrepodetailscsvrows)))
 
 topstarredrepos = []
 topwatchedrepos = []

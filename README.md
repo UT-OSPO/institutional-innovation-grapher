@@ -25,6 +25,7 @@ Once this repo is cloned locally, the template.env file should be renamed to jus
 * pagelimit:  Number of pages of GitHub results to return
 * minimumfollowers:  Minimum number of followers that a GitHub account must have for it to be included in results
 * minimumrepos:  Minimum number of repositories that a GitHub account must have for it to be included in results
+* githubrepolastupdatethresholdinmonths:  An integer used to restrict repository data gathered so that only repositories updated with the specified number of months will be included in the saved CSV. This can be helpful for filtering out projects that are no longer active.
 * detaillevel:  "fulldetail" or "limiteddetail" - this controls whether the email, company, and bio fields will be filled in in the results CSV
 * githubaccountdatacsvpathforvisualization:  The file path to the specific CSV that contains GitHub account data that was gathered by the script that should be used for generating data visualizations
 * githubrepodatacsvpathforvisualization:  The file path to the specific CSV that contains GitHub repository data that was gathered by the script that should be used for generating data visualizations
