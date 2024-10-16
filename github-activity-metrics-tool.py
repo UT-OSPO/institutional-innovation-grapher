@@ -5,6 +5,7 @@ import requests
 import json
 from datetime import datetime
 
+from dateutil.relativedelta import relativedelta
 
 
 
@@ -15,6 +16,10 @@ with open(".env") as envfile:
 simplifiedinstitutionname = config['institutionname'].replace(" ","-").lower().strip()
 config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d"))
 config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d"))
+
+
+if not os.path.isdir("outputs/" + datetime.now().strftime("%Y-%m-%d")):
+    os.mkdir("outputs/" + datetime.now().strftime("%Y-%m-%d"))
 
 
 ####EXAMPLE QUERY
@@ -343,12 +348,31 @@ for query in querylist:
                                                         print("    Data for repo #" + str(reponum + 1) + " out of " + str(len(reposdatalist)))
                                                         repocsvrow = []
 
+                                                        processrepo = False
+
+
+                                                        yearofmostrecentupdate = repo['updated_at'].lower().splite("t")[0].split("-")[0]
+                                                        monthofmostrecentupdate = repo['updated_at'].lower().splite("t")[0].split("-")[1]
+                                                        dayofmostrecentupdate = repo['updated_at'].lower().splite("t")[0].split("-")[2]
+
+                                                        # Example time: 2021-04-24T15:13:29Z
+                                                        datetimeofmostrecentupdate = datetime.strptime(repo['updated_at'], '%Y-%m-%dT%H:%M:%SZ')
+
+                                                        monthssincemostrecentupdate = float(relativedelta(datetime.now(), datetime(yearofmostrecentupdate,monthofmostrecentupdate,dayofmostrecentupdate,0,0,0,0)).months)
+                                                        
+
+                                                        if monthssincemostrecentupdate < config['githubrepolastupdatethresholdinmonths']:
+                                                            processrepo = True
+
                                                         for k2, v2 in repo.items():
 
                                                             if k2 in repocharacteristicstoprocess:
 
                                                                 try:
                                                                     license = ""
+
+
+
                                                                     if repo['html_url'] not in uniquerepolist:
                                                                         keycount += 1
 
