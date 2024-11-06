@@ -18,8 +18,8 @@ with open(".env") as envfile:
 
 
 simplifiedinstitutionname = config['institutionname'].replace(" ","-").lower().strip()
-config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d"))
-config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d"))
+config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("detaillevelplaceholder",config['detaillevel'])
+config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("lastupdatethresholdplaceholder","last" + str(config['githubrepolastupdatethresholdinmonths']) + "months")
 
 
 
@@ -360,66 +360,68 @@ for query in querylist:
                                                         # Example time: 2021-04-24T15:13:29Z
                                                         datetimeofmostrecentupdate = datetime.strptime(repo['updated_at'], '%Y-%m-%dT%H:%M:%SZ')
 
-                                                        monthssincemostrecentupdate = float(relativedelta(datetime.now(), datetime(yearofmostrecentupdate,monthofmostrecentupdate,dayofmostrecentupdate,0,0,0,0)).months)
-
+                                                        monthssincemostrecentupdate = (float(relativedelta(datetime.now(), datetimeofmostrecentupdate).years)*12) + float(relativedelta(datetime.now(), datetimeofmostrecentupdate).months)
+                                                        print("       LAST UPDATE DATE: " + repo['updated_at'])
+                                                        print("       REPO LAST UPDATED " + str(monthssincemostrecentupdate) + " MONTHS AGO")
 
                                                         if monthssincemostrecentupdate < config['githubrepolastupdatethresholdinmonths']:
                                                             processrepo = True
 
-                                                        for k2, v2 in repo.items():
 
-                                                            if k2 in repocharacteristicstoprocess:
+                                                            for k2, v2 in repo.items():
 
-                                                                try:
-                                                                    license = ""
+                                                                if k2 in repocharacteristicstoprocess:
+
+                                                                    try:
+                                                                        license = ""
 
 
 
-                                                                    if repo['html_url'] not in uniquerepolist:
-                                                                        keycount += 1
+                                                                        if repo['html_url'] not in uniquerepolist:
+                                                                            keycount += 1
 
-                                                                        print("            " + str(keycount) + "  " +  k2 + ": " + str(v2))
+                                                                            print("            " + str(keycount) + "  " +  k2 + ": " + str(v2))
 
-                                                                        if k2 == "language":
-                                                                            repolanguagelist.append(str(v2))
-                                                                            repocsvrow.append(str(v2))
+                                                                            if k2 == "language":
+                                                                                repolanguagelist.append(str(v2))
+                                                                                repocsvrow.append(str(v2))
 
-                                                                        elif k2 == "license":
-                                                                            if v2 == "None":
-                                                                                license = "None"
-                                                                                repolicenselist.append("None")
-                                                                                repocsvrow.append("None")
+                                                                            elif k2 == "license":
+                                                                                if v2 == "None":
+                                                                                    license = "None"
+                                                                                    repolicenselist.append("None")
+                                                                                    repocsvrow.append("None")
+                                                                                else:
+                                                                                    repolicenselist.append(v2['name'])
+                                                                                    repocsvrow.append(v2['name'])
+                                                                                    license = v2['name']
+
+                                                                            elif k2 == "stargazers_count":
+                                                                                repostargazerlist.append(v2)
+                                                                                repocsvrow.append(v2)
+
+                                                                            elif k2 == "watchers_count":
+                                                                                repowatcherlist.append(v2)
+
+                                                                                repocsvrow.append(v2)
+
+                                                                            elif k2 == "forks":
+                                                                                repoforklist.append(v2)
+
+                                                                                repocsvrow.append(v2)
+
                                                                             else:
-                                                                                repolicenselist.append(v2['name'])
-                                                                                repocsvrow.append(v2['name'])
-                                                                                license = v2['name']
+                                                                                repocsvrow.append(v2)
+                                                                    except:
+                                                                        pass
 
-                                                                        elif k2 == "stargazers_count":
-                                                                            repostargazerlist.append(v2)
-                                                                            repocsvrow.append(v2)
+                                                            print(str(len(repocsvrow)) + "   " + str(repocsvrow))
 
-                                                                        elif k2 == "watchers_count":
-                                                                            repowatcherlist.append(v2)
+                                                            #if licensing information not provided, add default license value of ""
+                                                            if len(repocsvrow) < 21:
+                                                                repocsvrow.insert(15,license)
 
-                                                                            repocsvrow.append(v2)
-
-                                                                        elif k2 == "forks":
-                                                                            repoforklist.append(v2)
-
-                                                                            repocsvrow.append(v2)
-
-                                                                        else:
-                                                                            repocsvrow.append(v2)
-                                                                except:
-                                                                    pass
-
-                                                        print(str(len(repocsvrow)) + "   " + str(repocsvrow))
-
-                                                        #if licensing information not provided, add default license value of ""
-                                                        if len(repocsvrow) < 21:
-                                                            repocsvrow.insert(15,license)
-
-                                                        finalgithubrepodetailscsvrows.append(repocsvrow)
+                                                            finalgithubrepodetailscsvrows.append(repocsvrow)
                                                         print("\n\n")
 
                                                 except Exception as e:
