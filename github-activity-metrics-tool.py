@@ -7,7 +7,20 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 
+try:
+    os.mkdir("inputs")
+except:
+    print("verified: inputs directory already exists")
 
+try:
+    os.mkdir("outputs")
+except:
+    print("verified: outputs directory already exists")
+
+try:
+    os.mkdir("logs")
+except:
+    print("verified: logs directory already exists")
 
 if not os.path.isdir("outputs/" + datetime.now().strftime("%Y-%m-%d")):
     os.mkdir("outputs/" + datetime.now().strftime("%Y-%m-%d"))
@@ -80,23 +93,6 @@ repoforklist = []
 
 finalgithubaccountdetailscsvrows = []
 finalgithubrepodetailscsvrows = []
-
-
-
-try:
-    os.mkdir("inputs")
-except:
-    print("verified: inputs directory already exists")
-
-try:
-    os.mkdir("outputs")
-except:
-    print("verified: outputs directory already exists")
-
-try:
-    os.mkdir("logs")
-except:
-    print("verified: logs directory already exists")
 
 
 
