@@ -9,14 +9,27 @@ from dateutil.relativedelta import relativedelta
 
 
 
+# Check to ensure that essential repo directories exist, and create them if they do not
+if not os.path.isdir("inputs"):
+    os.mkdir("inputs")
+
+if not os.path.isdir("outputs"):
+    os.mkdir("outputs")
+
+if not os.path.isdir("logs"):
+    os.mkdir("logs")
+
 if not os.path.isdir("outputs/" + datetime.now().strftime("%Y-%m-%d")):
     os.mkdir("outputs/" + datetime.now().strftime("%Y-%m-%d"))
 
 
+
+# Open and read config parameters from .env file
 with open(".env") as envfile:
     config = json.loads(envfile.read())
 
 
+# Modify config parameters
 simplifiedinstitutionname = config['institutionname'].replace(" ","-").lower().strip()
 config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("detaillevelplaceholder",config['detaillevel'])
 config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("lastupdatethresholdplaceholder","last" + str(config['githubrepolastupdatethresholdinmonths']) + "months")
@@ -83,20 +96,7 @@ finalgithubrepodetailscsvrows = []
 
 
 
-try:
-    os.mkdir("inputs")
-except:
-    print("verified: inputs directory already exists")
 
-try:
-    os.mkdir("outputs")
-except:
-    print("verified: outputs directory already exists")
-
-try:
-    os.mkdir("logs")
-except:
-    print("verified: logs directory already exists")
 
 
 
