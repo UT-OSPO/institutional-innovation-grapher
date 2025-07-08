@@ -1,38 +1,77 @@
 import os
 import csv
+import math
 import pandas as pd
 import requests
 import json
+import time
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
+test = True
 
-
-
-# Check to ensure that essential repo directories exist, and create them if they do not
-if not os.path.isdir("inputs"):
-    os.mkdir("inputs")
-
-if not os.path.isdir("outputs"):
-    os.mkdir("outputs")
-
-if not os.path.isdir("logs"):
-    os.mkdir("logs")
-
-if not os.path.isdir("outputs/" + datetime.now().strftime("%Y-%m-%d")):
-    os.mkdir("outputs/" + datetime.now().strftime("%Y-%m-%d"))
-
-
-
-# Open and read config parameters from .env file
 with open(".env") as envfile:
     config = json.loads(envfile.read())
 
+try:
+    os.mkdir("inputs")
+except:
+    print("verified: inputs directory already exists")
 
-# Modify config parameters
-simplifiedinstitutionname = config['institutionname'].replace(" ","-").lower().strip()
-config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("detaillevelplaceholder",config['detaillevel'])
-config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("lastupdatethresholdplaceholder","last" + str(config['githubrepolastupdatethresholdinmonths']) + "months")
+try:
+    os.mkdir("outputs")
+except:
+    print("verified: outputs directory already exists")
+
+try:
+    os.mkdir("logs")
+except:
+    print("verified: logs directory already exists")
+
+try:
+    os.mkdir("test")
+except:
+    print("verified: logs directory already exists")
+if test:
+    os.chdir("test")
+    try:
+        os.mkdir("inputs")
+    except:
+        print("verified: inputs directory already exists")
+
+    try:
+        os.mkdir("outputs")
+    except:
+        print("verified: outputs directory already exists")
+
+    try:
+        os.mkdir("logs")
+    except:
+        print("verified: logs directory already exists")
+
+
+today_str = datetime.now().strftime("%Y-%m-%d")
+output_dir = os.path.join("outputs", today_str)
+if not os.path.isdir(output_dir):
+    os.mkdir(output_dir)
+
+simplifiedinstitutionname = config['institutionname'].replace(" ", "-").lower().strip()
+account_filename = config['githubaccountdetailscsvpath'] \
+    .replace('institutionnameplaceholder', simplifiedinstitutionname) \
+    .replace('dateplaceholder', today_str) \
+    .replace("detaillevelplaceholder", config['detaillevel'])
+repo_filename = config['githubrepodetailscsvpath'] \
+    .replace('institutionnameplaceholder', simplifiedinstitutionname) \
+    .replace('dateplaceholder', today_str) \
+    .replace("lastupdatethresholdplaceholder", f"last{config['githubrepolastupdatethresholdinmonths']}months")
+config['githubaccountdetailscsvpath'] = os.path.join(output_dir, os.path.basename(account_filename))
+config['githubrepodetailscsvpath'] = os.path.join(output_dir, os.path.basename(repo_filename))
+
+#setting timestamp at start of script to calculate run time
+startTime = datetime.now() 
+
+# config['githubaccountdetailscsvpath'] = config['githubaccountdetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("detaillevelplaceholder",config['detaillevel'])
+# config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace('institutionnameplaceholder',simplifiedinstitutionname).replace('dateplaceholder',datetime.now().strftime("%Y-%m-%d")).replace("lastupdatethresholdplaceholder","last" + str(config['githubrepolastupdatethresholdinmonths']) + "months")
 
 
 
@@ -42,14 +81,25 @@ config['githubrepodetailscsvpath'] = config['githubrepodetailscsvpath'].replace(
 
 # update this list of queries to fit your institution
 querylist = []
-querylist.append("ut+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
-querylist.append("university+of+texas+at+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
-querylist.append("location:%22university+of+texas+at+austin%22&followers:>=" + str(config['minimumfollowers']) + "&repos:>=" + str(config['minimumrepos']))
-querylist.append("location:\"ut+austin\"&followers:>=" + str(config['minimumfollowers']) + "&repos:>=" + str(config['minimumrepos']))
-querylist.append("location%3AAustin+followers%3A%3E%3D40+repos%3A%3E%3D1&type=Users&ref=advsearch&l=&l=&s=followers&o=desc")
-querylist.append("texas+advanced+computing+center+in:bio&type=Users")
-
-
+if test:
+    querylist.append("texas+advanced+computing+center+in:bio&type=Users")
+else:
+    querylist.append("ut+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
+    querylist.append("university+of+texas+at+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
+    querylist.append("location:%22university+of+texas+at+austin%22&followers:>=" + str(config['minimumfollowers']) + "&repos:>=" + str(config['minimumrepos']))
+    querylist.append("location:\"ut+austin\"&followers:>=" + str(config['minimumfollowers']) + "&repos:>=" + str(config['minimumrepos']))
+    querylist.append("location%3AAustin+followers%3A%3E%3D40+repos%3A%3E%3D1&type=Users&ref=advsearch&l=&l=&s=followers&o=desc")
+    ## UT Austin specific subsidiary units
+    querylist.append("texas+advanced+computing+center+in:bio&type=Users")
+    querylist.append("mccombs+school+business+in:bio&type=Users")
+    querylist.append("moody+college+communication+in:bio&type=Users")
+    querylist.append("cockrell+school+engineering+in:bio&type=Users")
+    querylist.append("jackson+school+geosciences+in:bio&type=Users")
+    querylist.append("lbj+school+in:bio&type=Users")
+    querylist.append("dell+medical+in:bio&type=Users")
+    querylist.append("texas+institute+geophysics+in:bio&type=Users")
+    querylist.append("mcdonald+observatory+in:bio&type=Users")
+    querylist.append("oden+institute+in:bio&type=Users")
 
 githubaccountdetailscsvcolumns = []
 # if config['detaillevel'] == "fulldetail":
@@ -96,10 +146,6 @@ finalgithubrepodetailscsvrows = []
 
 
 
-
-
-
-
 def predictrole(parseddesc, fulldesc):
     prediction = ""
     additionalinfo = ""
@@ -140,6 +186,25 @@ def predictrole(parseddesc, fulldesc):
     print("returning the following predictionlist: " + str(predictionlist))
     return predictionlist
 
+## function to handle rate limiting: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28
+latest_remaining = None  # global tracker for remaining requests
+
+def github_request(url, headers):
+    global latest_remaining
+    while True:
+        response = requests.get(url, headers=headers)
+        remaining = int(response.headers.get("X-RateLimit-Remaining", 0))
+        reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
+        latest_remaining = remaining  # update tracker
+
+        if remaining == 0:
+            sleep_time = reset_time - int(time.time())
+            reset_time_str = datetime.fromtimestamp(reset_time).strftime('%Y-%m-%d %H:%M:%S')
+            print(f"Rate limit reached. Sleeping until {reset_time_str} ({sleep_time} seconds).")
+            time.sleep(sleep_time + 1)
+        else:
+            return response
+
 
 csvoutputrows = []
 csvrowdictionarylist = []
@@ -153,11 +218,16 @@ for query in querylist:
 
         print(queryurl)
 
-        data = requests.get(queryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+        data = github_request(queryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
 
         response = json.loads(data.content)
 
         print(response)
+
+        total_count = response.get('total_count', 0)
+        results_per_page = config['resultsperpage']
+        actual_total_pages = math.ceil(total_count / results_per_page)
+        max_pages = min(actual_total_pages, config['pagelimit'])
 
         try:
             responselinkheaders = data.headers["Link"]
@@ -177,7 +247,7 @@ for query in querylist:
 
         pagecount = 0
 
-        while pagecount < config['pagelimit']:
+        while pagecount < max_pages:
 
             try:
                 pagecount += 1
@@ -186,7 +256,7 @@ for query in querylist:
 
                 print("queryurl = " + queryurl)
 
-                data = requests.get(queryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+                data = github_request(queryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
 
                 response = json.loads(data.content)
 
@@ -206,7 +276,7 @@ for query in querylist:
                         for k, v in u.items():
                             if k == "url":
                                 accountdetailsurl = v
-                                accountdetailsdata = requests.get(accountdetailsurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken']})
+                                accountdetailsdata = github_request(accountdetailsurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken']})
                                 accountdetailsdatalist = accountdetailsdata.content.decode("latin-1")
                                 accountdetailsdatalist = json.loads(accountdetailsdatalist)
 
@@ -257,7 +327,7 @@ for query in querylist:
 
                                 if k == "url":
                                     accountdetailsurl = v
-                                    accountdetailsdata = requests.get(accountdetailsurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken']})
+                                    accountdetailsdata = github_request(accountdetailsurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken']})
                                     accountdetailsdatalist = accountdetailsdata.content.decode("latin-1")
                                     accountdetailsdatalist = json.loads(accountdetailsdatalist)
 
@@ -340,7 +410,7 @@ for query in querylist:
                                             if k2 == "repos_url":
                                                 try:
                                                     reposqueryurl = v2
-                                                    reposdata = requests.get(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+                                                    reposdata = github_request(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
                                                     reposdatalist = json.loads(reposdata.content.decode("latin-1"))
 
 
@@ -487,7 +557,6 @@ for query in querylist:
         print("ERROR: " + str(e))
 
 
-
 for obj in csvrowdictionarylist:
     newrow = []
     for columnname in githubaccountdetailscsvcolumns:
@@ -595,3 +664,7 @@ for i in reversed(range(max(licensecountlist) + 1)):
 
         except Exception as e:
             print(str(e))
+
+print(f"\nRemaining GitHub API requests (5,000 per hour for API users): {latest_remaining}\n")
+
+print(f"Time to run: {datetime.now() - startTime}\n")
