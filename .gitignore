@@ -3,6 +3,8 @@
 inputs/*
 outputs/*
 archive/*
+sandbox/*
+test/*
 logs/*
 
 # Byte-compiled / optimized / DLL files
