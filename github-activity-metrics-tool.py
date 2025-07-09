@@ -9,6 +9,10 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 test = True
+immediateLimiting = True
+if immediateLimiting:
+    print("Manually imposed rate limiting is ON.")
+contents = False
 
 with open(".env") as envfile:
     config = json.loads(envfile.read())
@@ -56,6 +60,7 @@ if not os.path.isdir(output_dir):
     os.mkdir(output_dir)
 
 simplifiedinstitutionname = config['institutionname'].replace(" ", "-").lower().strip()
+affiliations = config['institutionnamepermutations']
 account_filename = config['githubaccountdetailscsvpath'] \
     .replace('institutionnameplaceholder', simplifiedinstitutionname) \
     .replace('dateplaceholder', today_str) \
@@ -83,6 +88,15 @@ startTime = datetime.now()
 querylist = []
 if test:
     querylist.append("texas+advanced+computing+center+in:bio&type=Users")
+    querylist.append("mccombs+school+business+in:bio&type=Users")
+    querylist.append("moody+college+communication+in:bio&type=Users")
+    querylist.append("cockrell+school+engineering+in:bio&type=Users")
+    querylist.append("jackson+school+geosciences+in:bio&type=Users")
+    querylist.append("lbj+school+in:bio&type=Users")
+    querylist.append("dell+medical+in:bio&type=Users")
+    querylist.append("texas+institute+geophysics+in:bio&type=Users")
+    querylist.append("mcdonald+observatory+in:bio&type=Users")
+    querylist.append("oden+institute+in:bio&type=Users")
 else:
     querylist.append("ut+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
     querylist.append("university+of+texas+at+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
@@ -116,10 +130,14 @@ githubaccountdetailscsvcolumns.append("predicted general " + config['institution
 githubaccountdetailscsvcolumns.append("additional predicted info")
 githubaccountdetailscsvcolumns.append("query")
 githubaccountdetailscsvcolumns.append("querydate")
+githubaccountdetailscsvcolumns.append("companyAffiliation")
+githubaccountdetailscsvcolumns.append("bioAffiliation")
 
 
-
-githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues']
+if contents:
+    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues','files','extensions','file_count','file_size', 'readme', 'contributing', 'code_of_conduct']
+else:
+    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues']
 
 
 uniquerepolist = []
@@ -191,19 +209,44 @@ latest_remaining = None  # global tracker for remaining requests
 
 def github_request(url, headers):
     global latest_remaining
+
     while True:
         response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            print(f"Error: {response.status_code}")
+            return None
+
         remaining = int(response.headers.get("X-RateLimit-Remaining", 0))
         reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
-        latest_remaining = remaining  # update tracker
+        latest_remaining = remaining
 
+        now = int(time.time())
+        seconds_until_reset = reset_time - now
+
+        # If we've hit the limit, wait until reset (with buffer)
         if remaining == 0:
-            sleep_time = reset_time - int(time.time())
             reset_time_str = datetime.fromtimestamp(reset_time).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Rate limit reached. Sleeping until {reset_time_str} ({sleep_time} seconds).")
-            time.sleep(sleep_time + 1)
-        else:
-            return response
+            print(f"Rate limit reached. Sleeping until {reset_time_str} ({seconds_until_reset} seconds).")
+            time.sleep(max(seconds_until_reset + 60, 0))
+            continue
+
+        # Pacing logic
+        if immediateLimiting or remaining < 100:
+            # Calculate how long to wait between requests
+            delay = seconds_until_reset / remaining if remaining > 0 else seconds_until_reset
+            if remaining < 100:
+                print(f"Pacing requests: {remaining} left, {seconds_until_reset}s until reset. Sleeping {delay:.2f}s.")
+            time.sleep(delay)
+
+        return response
+
+# function to identify which affiliation permutation is found
+def find_first_affiliation_in_string(text, aff_list):
+    for aff in aff_list:
+        if aff in text:
+            return aff
+    return None
+
 
 
 csvoutputrows = []
@@ -346,8 +389,11 @@ for query in querylist:
                                                     if config['detaillevel'] == "fulldetail":
                                                         v2 = v2.replace("@","").replace("\n","")
                                                         csvrowdictionary[k2] = v2
+                                                        companyAffiliation = find_first_affiliation_in_string(v2, affiliations)
+                                                        csvrowdictionary["companyAffiliation"] = companyAffiliation if companyAffiliation else ""
                                                     else:
                                                         csvrowdictionary[k2] = ""
+                                                        csvrowdictionary["companyAffiliation"] = ""
 
                                                 elif k2 == "email":
                                                     if v2 is None or "@" not in str(v2):
@@ -397,6 +443,9 @@ for query in querylist:
                                                         csvrowdictionary["additional predicted info"] = predictrole(institutionrole, v2.lower())[1]
                                                         csvrow.extend(predictrole(institutionrole, v2.lower()))
 
+                                                    bioAffiliation = find_first_affiliation_in_string(v2, affiliations)
+                                                    csvrowdictionary["bioAffiliation"] = bioAffiliation if bioAffiliation else ""
+
                                                 else:
                                                     csvrowdictionary[k2] = v2
 
@@ -436,7 +485,6 @@ for query in querylist:
 
                                                         if monthssincemostrecentupdate < config['githubrepolastupdatethresholdinmonths']:
                                                             processrepo = True
-
 
                                                             for k2, v2 in repo.items():
 
@@ -482,6 +530,7 @@ for query in querylist:
 
                                                                             else:
                                                                                 repocsvrow.append(v2)
+
                                                                     except:
                                                                         pass
 
@@ -490,7 +539,52 @@ for query in querylist:
                                                             #if licensing information not provided, add default license value of ""
                                                             if len(repocsvrow) < 21:
                                                                 repocsvrow.insert(15,license)
+                                                            if contents:
+                                                                try:
+                                                                    contents_url = repo["url"].rstrip("/") + "/contents"
+                                                                    contents_data = github_request(
+                                                                        contents_url,
+                                                                        headers={
+                                                                            "X-GitHub-Api-Version": "2022-11-28",
+                                                                            "Authorization": "Bearer " + config['githubtoken'],
+                                                                            "Accept": "application/vnd.github+json"
+                                                                        }
+                                                                    )
+                                                                    contents_list = json.loads(contents_data.content.decode("utf-8"))
+                                                                    
+                                                                    file_names = [item['name'] for item in contents_list if item['type'] == 'file']
+                                                                    file_names_str = "; ".join(file_names)
+                                                                    extensions = []
+                                                                    for name in file_names:
+                                                                        if name.startswith(".") and name.count(".") == 1:
+                                                                            # handles dotfiles like .gitignore
+                                                                            extensions.append(name)
+                                                                        else:
+                                                                            _, ext = os.path.splitext(name)
+                                                                            if ext:
+                                                                                extensions.append(ext)
 
+                                                                    unique_extensions = sorted(set(extensions))
+                                                                    extensions_str = "; ".join(unique_extensions)
+
+                                                                    file_count = len(file_names_str.split(";"))
+                                                                    file_sizes_sum = sum(item['size'] for item in contents_list if item['type'] == 'file')
+
+                                                                    contains_readme = "readme" in file_names_str.lower()
+                                                                    contains_contributing = "contributing" in file_names_str.lower()
+                                                                    contains_code_of_conduct = "conduct" in file_names_str.lower() #check sensitivity
+
+                                                                    repocsvrow.append(file_names_str)
+                                                                    repocsvrow.append(extensions_str)
+                                                                    repocsvrow.append(file_count)
+                                                                    repocsvrow.append(file_sizes_sum)
+                                                                    repocsvrow.append(contains_readme)
+                                                                    repocsvrow.append(contains_contributing)
+                                                                    repocsvrow.append(contains_code_of_conduct)
+
+                                                                except Exception as e:
+                                                                    print(f"    Error fetching contents: {e}")
+                                                            
                                                             finalgithubrepodetailscsvrows.append(repocsvrow)
                                                         print("\n\n")
 
