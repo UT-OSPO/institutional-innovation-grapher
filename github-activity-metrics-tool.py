@@ -1,7 +1,6 @@
 import os
 import csv
 import math
-import pandas as pd
 import requests
 import json
 import time
@@ -11,7 +10,7 @@ from dateutil.relativedelta import relativedelta
 test = True
 immediateLimiting = True
 if immediateLimiting:
-    print("Manually imposed rate limiting is ON.")
+    print("Manually imposed rate limiting is ON.\n")
 contents = False
 
 with open(".env") as envfile:
@@ -97,6 +96,7 @@ if test:
     querylist.append("texas+institute+geophysics+in:bio&type=Users")
     querylist.append("mcdonald+observatory+in:bio&type=Users")
     querylist.append("oden+institute+in:bio&type=Users")
+    querylist.append("llilas+benson+in:bio&type=Users")
 else:
     querylist.append("ut+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
     querylist.append("university+of+texas+at+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
@@ -114,6 +114,7 @@ else:
     querylist.append("texas+institute+geophysics+in:bio&type=Users")
     querylist.append("mcdonald+observatory+in:bio&type=Users")
     querylist.append("oden+institute+in:bio&type=Users")
+    querylist.append("llilas+benson+in:bio&type=Users")
 
 githubaccountdetailscsvcolumns = []
 # if config['detaillevel'] == "fulldetail":
@@ -130,6 +131,7 @@ githubaccountdetailscsvcolumns.append("predicted general " + config['institution
 githubaccountdetailscsvcolumns.append("additional predicted info")
 githubaccountdetailscsvcolumns.append("query")
 githubaccountdetailscsvcolumns.append("querydate")
+githubaccountdetailscsvcolumns.append("nameAffiliation")
 githubaccountdetailscsvcolumns.append("companyAffiliation")
 githubaccountdetailscsvcolumns.append("bioAffiliation")
 
@@ -230,23 +232,62 @@ def github_request(url, headers):
             time.sleep(max(seconds_until_reset + 60, 0))
             continue
 
-        # Pacing logic
-        if immediateLimiting or remaining < 100:
-            # Calculate how long to wait between requests
-            delay = seconds_until_reset / remaining if remaining > 0 else seconds_until_reset
-            if remaining < 100:
-                print(f"Pacing requests: {remaining} left, {seconds_until_reset}s until reset. Sleeping {delay:.2f}s.")
-            time.sleep(delay)
+        # Check if this is a Search endpoint
+        if "/search/" in url:
+            # Always pace requests to 30/minute (2 seconds between requests)
+            print("Search endpoint: enforcing 2s delay per request.")
+            time.sleep(2)
+        else:
+            # Non-search endpoints: use your existing pacing logic
+            if immediateLimiting or remaining < 100:
+                delay = seconds_until_reset / remaining if remaining > 0 else seconds_until_reset
+                if remaining < 100:
+                    print(f"Pacing requests: {remaining} left, {seconds_until_reset}s until reset. Sleeping {delay:.2f}s.")
+                time.sleep(delay)
 
         return response
+    
+# function to go through all pages of an account to get repos
+def get_all_repositories(repos_url, headers):
+    all_repos = []
+    page = 1
+    per_page = config['resultsperpage']
+
+    while True:
+        paged_url = f"{repos_url}?per_page={per_page}&page={page}"
+        repos_data = github_request(paged_url, headers=headers)
+        repos_list = json.loads(repos_data.content.decode("latin-1"))
+
+        if not repos_list:
+            break
+
+        all_repos.extend(repos_list)
+
+        if len(repos_list) < per_page:
+            break  # Last page reached
+
+        page += 1
+
+    return all_repos
 
 # function to identify which affiliation permutation is found
-def find_first_affiliation_in_string(text, aff_list):
-    for aff in aff_list:
-        if aff in text:
-            return aff
-    return None
+import re
 
+def find_first_affiliation_in_string(text, aff_list):
+    text_lower = text.lower()
+    for aff in aff_list:
+        # case-insensitive search
+        aff_lower = aff.lower()
+        # Use word boundaries for short or ambiguous affiliations like "UT"
+        if len(aff) <= 3 or aff_lower in {"ut"}:
+            # \b matches word boundaries
+            pattern = r'\b' + re.escape(aff_lower) + r'\b'
+            if re.search(pattern, text_lower):
+                return aff
+        else:
+            if aff_lower in text_lower:
+                return aff
+    return None
 
 
 csvoutputrows = []
@@ -380,6 +421,8 @@ for query in querylist:
                                                 if k2 == "name":
                                                     v2 = v2.title().replace("\n","")
                                                     csvrowdictionary[k2] = v2
+                                                    nameAffiliation = find_first_affiliation_in_string(v2, affiliations)
+                                                    csvrowdictionary["nameAffiliation"] = nameAffiliation if nameAffiliation else ""
 
                                                 elif k2 == "created_at" or k2 == "updated_at":
                                                     v2 = v2.split("T")[0].replace("\n","")
@@ -459,9 +502,9 @@ for query in querylist:
                                             if k2 == "repos_url":
                                                 try:
                                                     reposqueryurl = v2
-                                                    reposdata = github_request(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
-                                                    reposdatalist = json.loads(reposdata.content.decode("latin-1"))
-
+                                                    # reposdata = github_request(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+                                                    # reposdatalist = json.loads(reposdata.content.decode("latin-1"))
+                                                    reposdatalist = get_all_repositories(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
 
 
                                                     for reponum, repo in enumerate(reposdatalist):
