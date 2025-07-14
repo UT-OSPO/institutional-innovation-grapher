@@ -7,7 +7,6 @@ import time
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
-test = True
 immediateLimiting = True
 if immediateLimiting:
     print("Manually imposed rate limiting is ON.\n")
@@ -15,6 +14,8 @@ contents = False
 
 with open(".env") as envfile:
     config = json.loads(envfile.read())
+
+test = config["test"]
 
 try:
     os.mkdir("inputs")
