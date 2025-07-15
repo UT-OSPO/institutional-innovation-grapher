@@ -1,6 +1,5 @@
-import matplotlib.pyplot as plt
-import csv
 import json
+import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import re
@@ -36,30 +35,26 @@ def loadmostrecentfile(outputs_dir, pattern):
         print(f"No file with pattern '{pattern}' found in '{most_recent_path}'.")
         return None, most_recent_path
 
-    # Optionally, pick the most recent file if there are multiple matches
-    matching_files.sort(reverse=True)
-    latest_file = matching_files[0]
-    file_path = os.path.join(most_recent_path, latest_file)
-    df = pd.read_csv(file_path, encoding="latin1")
-    print(f"Loaded '{latest_file}' that was exported on '{most_recent_folder}'.")
-    return df, most_recent_path
+    if matching_files:
+        # Get full file paths
+        full_paths = [os.path.join(most_recent_path, f) for f in matching_files]
+        # Sort by modification time, newest first
+        full_paths.sort(key=os.path.getmtime, reverse=True)
+        # Pick the most recently modified file
+        latest_file_path = full_paths[0]
+        latest_file = os.path.basename(latest_file_path)
+        df = pd.read_csv(latest_file_path, encoding="latin1")
+        print(f"Loaded '{latest_file}' (most recently modified) from '{most_recent_folder}'.")
+        return df, most_recent_path
 
 if test:
     outputs_dir = "test/outputs"
 else:
     outputs_dir = "outputs"
 repo_pattern = "github-repo-list-"
-account_pattern = "github-account-list-"
+account_pattern = "github-account-list"
 repodata, data_dir = loadmostrecentfile(outputs_dir, repo_pattern)
 accountdata, data_dir = loadmostrecentfile(outputs_dir, account_pattern)
-
-# languagedata = []
-# licensedata = []
-# starcountdata = []
-# watchercountdata = []
-# forkcountdata = []
-# createdatdata = []
-# updatedatdata = []
 
 languagedata = repodata["language"]
 licensedata = repodata["license"]
@@ -69,63 +64,7 @@ forkcountdata = repodata["forks_count"]
 createdatdata = repodata["created_at"]
 updatedatdata = repodata["updated_at"]
 
-
-# with open(config["githubrepodatacsvpathforvisualization"], "r") as repodatacsv:
-#     repodata = csv.reader(repodatacsv)
-
-#     for row in repodata:
-#         primarylanguage = row[10]
-#         license = row[15]
-#         starcount = row[8]
-#         watchercount = row[9]
-#         forkcount = row[11]
-#         datecreated = row[5]
-#         dateupdated = row[6]
-
-#         yearssincecreated = ""
-#         yearssinceupdated = ""
-
-#         languagedata.append(primarylanguage)
-#         licensedata.append(license)
-#         starcountdata.append(starcount)
-#         watchercountdata.append(watchercount)
-#         forkcountdata.append(forkcount)
-#         createdatdata.append(datecreated)
-#         updatedatdata.append(dateupdated)
-
-
-# def createpiechart(dataset, otherthreshold, title):
-
-#     datalabels = []
-#     datacounts = []
-
-#     dataothercount = 0
-
-#     for datapoint in set(dataset):
-
-#         if dataset.count(datapoint) < otherthreshold:
-#             dataothercount += dataset.count(datapoint)
-
-#         else:
-#             if datapoint == "":
-#                 datalabels.append("None")
-#             else:
-#                 datalabels.append(datapoint.strip())
-#             datacounts.append(dataset.count(datapoint))
-
-
-#     fig, ax = plt.subplots()
-
-#     ax.set_title = title
-#     plt.suptitle(title)
-#     notex, notey = .01, .01
-#     fig.text(notex, notey,'* values with counts under ' + str(otherthreshold) + ' merged into \'other\' category', transform=fig.transFigure)
-#     ax.pie(datacounts, labels=datalabels)
-
-#     plt.show()
-
 def createsavepiechart(dataset, otherthreshold, title, plots_dir, plot_filename, plotFormat="png", show_plot=False):
-    # Ensure dataset is a pandas Series
     if not isinstance(dataset, pd.Series):
         dataset = pd.Series(dataset)
     
@@ -158,7 +97,7 @@ def createsavepiechart(dataset, otherthreshold, title, plots_dir, plot_filename,
     ax.pie(datacounts, labels=datalabels, autopct='%1.1f%%')
     plt.tight_layout()
 
-    # Ensure plots_dir exists
+    # ensure plots_dir exists
     os.makedirs(plots_dir, exist_ok=True)
     plot_path = os.path.join(plots_dir, plot_filename)
     plt.savefig(plot_path, format=plotFormat)
@@ -167,9 +106,6 @@ def createsavepiechart(dataset, otherthreshold, title, plots_dir, plot_filename,
     if show_plot:
         plt.show()
     plt.close(fig)
-
-# createsavepiechart(licensedata, 5,"Licenses Assigned to Affiliated GitHub Repositories")
-# createsavepiechart(languagedata, 20, "Primary Language Used in Affiliated GitHub Repositories")
 
 plot_filename = f"repo-license-count-{todayDate}.{plotformat}"
 createsavepiechart(licensedata, 5,"Licenses Assigned to Affiliated GitHub Repositories", data_dir, plot_filename, plotformat, True)

@@ -3,19 +3,21 @@ import csv
 import math
 import requests
 import json
+import re
 import time
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-
-immediateLimiting = True
-if immediateLimiting:
-    print("Manually imposed rate limiting is ON.\n")
-contents = False
 
 with open(".env") as envfile:
     config = json.loads(envfile.read())
 
 test = config["test"]
+immediateLimiting = config["ratelimiting"]
+contents = config["contents"]
+onlyAffiliated = config["onlyaffiliated"]
+
+if immediateLimiting:
+    print("Manually imposed rate limiting is ON.\n")
 
 try:
     os.mkdir("inputs")
@@ -65,12 +67,22 @@ account_filename = config['githubaccountdetailscsvpath'] \
     .replace('institutionnameplaceholder', simplifiedinstitutionname) \
     .replace('dateplaceholder', today_str) \
     .replace("detaillevelplaceholder", config['detaillevel'])
+account_filename_filtered = config['githubaccountdetailsfilteredcsvpath'] \
+    .replace('institutionnameplaceholder', simplifiedinstitutionname) \
+    .replace('dateplaceholder', today_str) \
+    .replace("detaillevelplaceholder", config['detaillevel'])
 repo_filename = config['githubrepodetailscsvpath'] \
     .replace('institutionnameplaceholder', simplifiedinstitutionname) \
     .replace('dateplaceholder', today_str) \
     .replace("lastupdatethresholdplaceholder", f"last{config['githubrepolastupdatethresholdinmonths']}months")
+repo_filename_filtered = config['githubrepodetailsfilteredcsvpath'] \
+    .replace('institutionnameplaceholder', simplifiedinstitutionname) \
+    .replace('dateplaceholder', today_str) \
+    .replace("lastupdatethresholdplaceholder", f"last{config['githubrepolastupdatethresholdinmonths']}months")
 config['githubaccountdetailscsvpath'] = os.path.join(output_dir, os.path.basename(account_filename))
+config['githubaccountdetailsfilteredcsvpath'] = os.path.join(output_dir, os.path.basename(account_filename_filtered))
 config['githubrepodetailscsvpath'] = os.path.join(output_dir, os.path.basename(repo_filename))
+config['githubrepodetailsfilteredcsvpath'] = os.path.join(output_dir, os.path.basename(repo_filename_filtered))
 
 #setting timestamp at start of script to calculate run time
 startTime = datetime.now() 
@@ -88,16 +100,7 @@ startTime = datetime.now()
 querylist = []
 if test:
     querylist.append("texas+advanced+computing+center+in:bio&type=Users")
-    querylist.append("mccombs+school+business+in:bio&type=Users")
-    querylist.append("moody+college+communication+in:bio&type=Users")
-    querylist.append("cockrell+school+engineering+in:bio&type=Users")
-    querylist.append("jackson+school+geosciences+in:bio&type=Users")
-    querylist.append("lbj+school+in:bio&type=Users")
-    querylist.append("dell+medical+in:bio&type=Users")
-    querylist.append("texas+institute+geophysics+in:bio&type=Users")
-    querylist.append("mcdonald+observatory+in:bio&type=Users")
-    querylist.append("oden+institute+in:bio&type=Users")
-    querylist.append("llilas+benson+in:bio&type=Users")
+    querylist.append("tacc+in:bio&type=Users")
 else:
     querylist.append("ut+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
     querylist.append("university+of+texas+at+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
@@ -106,6 +109,7 @@ else:
     querylist.append("location%3AAustin+followers%3A%3E%3D40+repos%3A%3E%3D1&type=Users&ref=advsearch&l=&l=&s=followers&o=desc")
     ## UT Austin specific subsidiary units
     querylist.append("texas+advanced+computing+center+in:bio&type=Users")
+    querylist.append("tacc+in:bio&type=Users")
     querylist.append("mccombs+school+business+in:bio&type=Users")
     querylist.append("moody+college+communication+in:bio&type=Users")
     querylist.append("cockrell+school+engineering+in:bio&type=Users")
@@ -121,9 +125,11 @@ githubaccountdetailscsvcolumns = []
 # if config['detaillevel'] == "fulldetail":
 githubaccountdetailscsvcolumns.append("name")
 githubaccountdetailscsvcolumns.append("html_url")
+githubaccountdetailscsvcolumns.append("repos_url")
 githubaccountdetailscsvcolumns.append("company")
 githubaccountdetailscsvcolumns.append("email")
 githubaccountdetailscsvcolumns.append("bio")
+githubaccountdetailscsvcolumns.append("location")
 githubaccountdetailscsvcolumns.append("public_repos")
 githubaccountdetailscsvcolumns.append("followers")
 githubaccountdetailscsvcolumns.append("created_at")
@@ -135,10 +141,12 @@ githubaccountdetailscsvcolumns.append("querydate")
 githubaccountdetailscsvcolumns.append("nameAffiliation")
 githubaccountdetailscsvcolumns.append("companyAffiliation")
 githubaccountdetailscsvcolumns.append("bioAffiliation")
+githubaccountdetailscsvcolumns.append("locationAffiliation")
+githubaccountdetailscsvcolumns.append("isAffiliated")
 
 
 if contents:
-    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues','files','extensions','file_count','file_size', 'readme', 'contributing', 'code_of_conduct']
+    githubrepodetailscsvcolumns = ['name','full_name','html_url','repos_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues','files','extensions','file_count','file_size', 'readme', 'contributing', 'code_of_conduct']
 else:
     githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues']
 
@@ -180,13 +188,16 @@ def predictrole(parseddesc, fulldesc):
         if "post" in desc and "doc" in desc:
             prediction = "Postdoc"
 
+        if "research associate" in desc:
+            prediction = "Research Associate"
+
         if "student" in desc or "freshman" in desc or "sophmore" in desc or "junior" in desc or "senior" in desc or "major" in desc or "research assistant" in desc or "candidate" in desc or "studying" in desc:
             prediction = "Student"
 
             if "freshman" in desc or "sophmore" in desc or "junior" in desc or "senior" in desc or "undergrad" in desc:
                 additionalinfo = "Undergraduate student"
 
-            if "graduate student" in desc or " grad student" in desc or "masters" in desc:
+            if "graduate student" in desc or " grad student" in desc or "masters" in desc or "graduate research":
                 additionalinfo = "Graduate student"
 
             if "doctoral student" in desc or "phd student" in desc or "candidate" in desc or "ph.d. student" in desc:
@@ -208,10 +219,12 @@ def predictrole(parseddesc, fulldesc):
     return predictionlist
 
 ## function to handle rate limiting: https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28
-latest_remaining = None  # global tracker for remaining requests
+latest_remaining = None 
+approaching_limit_paused = False
+last_reset_time = None
 
-def github_request(url, headers):
-    global latest_remaining
+def github_request(url, headers, immediateLimiting=False):
+    global latest_remaining, approaching_limit_paused, last_reset_time
 
     while True:
         response = requests.get(url, headers=headers)
@@ -223,29 +236,44 @@ def github_request(url, headers):
         reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
         latest_remaining = remaining
 
-        now = int(time.time())
-        seconds_until_reset = reset_time - now
+        # reset the pause flag if the rate limit window has reset
+        if last_reset_time != reset_time:
+            approaching_limit_paused = False
+            last_reset_time = reset_time
 
-        # If we've hit the limit, wait until reset (with buffer)
-        if remaining == 0:
-            reset_time_str = datetime.fromtimestamp(reset_time).strftime('%Y-%m-%d %H:%M:%S')
-            print(f"Rate limit reached. Sleeping until {reset_time_str} ({seconds_until_reset} seconds).")
-            time.sleep(max(seconds_until_reset + 60, 0))
-            continue
+        # pacing for core endpoints (5000/hr)
+        pacing_interval = 3600 / 5000
 
-        # Check if this is a Search endpoint
+        # Search endpoint (30/min)
         if "/search/" in url:
-            # Always pace requests to 30/minute (2 seconds between requests)
             print("Search endpoint: enforcing 2s delay per request.")
             time.sleep(2)
-        else:
-            # Non-search endpoints: use your existing pacing logic
-            if immediateLimiting or remaining < 100:
-                delay = seconds_until_reset / remaining if remaining > 0 else seconds_until_reset
-                if remaining < 100:
-                    print(f"Pacing requests: {remaining} left, {seconds_until_reset}s until reset. Sleeping {delay:.2f}s.")
-                time.sleep(delay)
 
+        if immediateLimiting:
+            print(f"Immediate limiting: sleeping {pacing_interval:.2f}s per request.")
+            time.sleep(pacing_interval)
+            return response
+
+        # if rate limit is hit
+        if remaining == 0 and "/search/" not in url:
+            reset_time_str = datetime.fromtimestamp(reset_time).strftime('%Y-%m-%d %H:%M:%S')
+            print(f"Rate limit reached. Sleeping until reset time ({reset_time_str}).")
+            sleep_seconds = max(0, reset_time - time.time())
+            time.sleep(sleep_seconds + pacing_interval)
+            continue
+
+        # if rate limit is approached, pause once, then resume at specified pace
+        if remaining < 100 and "/search/" not in url and not approaching_limit_paused:
+            print(f"Approaching rate limit: {remaining} left. Sleeping for 2 minutes.")
+            time.sleep(120)
+            print(f"Pacing after sleep: sleeping {pacing_interval:.2f}s per request.")
+            time.sleep(pacing_interval)
+            approaching_limit_paused = True
+            return response
+
+        # after the first pause, pace normally (i.e. don't get caught in delayed cycle based on remaining counter)
+        print(f"Pacing: sleeping {pacing_interval:.2f}s per request.")
+        time.sleep(pacing_interval)
         return response
     
 # function to go through all pages of an account to get repos
@@ -272,22 +300,28 @@ def get_all_repositories(repos_url, headers):
     return all_repos
 
 # function to identify which affiliation permutation is found
-import re
-
 def find_first_affiliation_in_string(text, aff_list):
     text_lower = text.lower()
     for aff in aff_list:
-        # case-insensitive search
         aff_lower = aff.lower()
-        # Use word boundaries for short or ambiguous affiliations like "UT"
-        if len(aff) <= 3 or aff_lower in {"ut"}:
-            # \b matches word boundaries
+
+        # for TACC: case-sensitive, word-boundary match
+        if aff == "TACC":
+            pattern = r'\bTACC\b'
+            if re.search(pattern, text):
+                return aff
+
+        # for 'UT': case-insensitive, word-boundary match
+        elif len(aff) <= 3 or aff_lower in {"ut"}:
             pattern = r'\b' + re.escape(aff_lower) + r'\b'
             if re.search(pattern, text_lower):
                 return aff
+
+        # for all others: case-insensitive substring match
         else:
             if aff_lower in text_lower:
                 return aff
+
     return None
 
 
@@ -425,6 +459,14 @@ for query in querylist:
                                                     nameAffiliation = find_first_affiliation_in_string(v2, affiliations)
                                                     csvrowdictionary["nameAffiliation"] = nameAffiliation if nameAffiliation else ""
 
+                                                elif k2 == "repos_url":
+                                                    csvrowdictionary[k2] = v2
+
+                                                elif k2 == "location":
+                                                    csvrowdictionary[k2] = v2
+                                                    locationAffiliation = find_first_affiliation_in_string(v2, affiliations)
+                                                    csvrowdictionary["locationAffiliation"] = locationAffiliation if locationAffiliation else ""
+
                                                 elif k2 == "created_at" or k2 == "updated_at":
                                                     v2 = v2.split("T")[0].replace("\n","")
                                                     csvrowdictionary[k2] = v2
@@ -492,210 +534,172 @@ for query in querylist:
 
                                                 else:
                                                     csvrowdictionary[k2] = v2
+                                                print(csvrowdictionary)
 
                                             except Exception as e:
                                                 print(str(e))
                                                 csvrowdictionary[k2] = ""
 
-                                        if k in usercharacteristicstoprocess or "*" in usercharacteristicstoprocess:
-                                            print("   " + k2 + ": " + str(v2))
+                                    aff_fields = [
+                                                csvrowdictionary.get("bioAffiliation", ""),
+                                                csvrowdictionary.get("nameAffiliation", ""),
+                                                csvrowdictionary.get("companyAffiliation", ""),
+                                                csvrowdictionary.get("locationAffiliation", "")
+                                            ]
+                                    csvrowdictionary["isAffiliated"] = any(aff_fields)
+                                    print("Affiliation fields:", aff_fields)
 
-                                            if k2 == "repos_url":
-                                                try:
-                                                    reposqueryurl = v2
-                                                    # reposdata = github_request(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
-                                                    # reposdatalist = json.loads(reposdata.content.decode("latin-1"))
-                                                    reposdatalist = get_all_repositories(reposqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
-
-
-                                                    for reponum, repo in enumerate(reposdatalist):
-                                                        keycount = 0
-                                                        print("       Data for repo #" + str(reponum + 1) + " out of " + str(len(reposdatalist)))
-                                                        repocsvrow = []
-
-                                                        processrepo = False
-
-
-                                                        yearofmostrecentupdate = int(repo['updated_at'].lower().split("t")[0].split("-")[0])
-                                                        monthofmostrecentupdate = int(repo['updated_at'].lower().split("t")[0].split("-")[1])
-                                                        dayofmostrecentupdate = int(repo['updated_at'].lower().split("t")[0].split("-")[2])
-
-                                                        # Example time: 2021-04-24T15:13:29Z
-                                                        datetimeofmostrecentupdate = datetime.strptime(repo['updated_at'], '%Y-%m-%dT%H:%M:%SZ')
-
-                                                        monthssincemostrecentupdate = (float(relativedelta(datetime.now(), datetimeofmostrecentupdate).years)*12) + float(relativedelta(datetime.now(), datetimeofmostrecentupdate).months)
-                                                        print("       LAST UPDATE DATE: " + repo['updated_at'])
-                                                        print("       REPO LAST UPDATED " + str(monthssincemostrecentupdate) + " MONTHS AGO")
-
-                                                        if monthssincemostrecentupdate < config['githubrepolastupdatethresholdinmonths']:
-                                                            processrepo = True
-
-                                                            for k2, v2 in repo.items():
-
-                                                                if k2 in repocharacteristicstoprocess:
-
-                                                                    try:
-                                                                        license = ""
-
-
-
-                                                                        if repo['html_url'] not in uniquerepolist:
-                                                                            keycount += 1
-
-                                                                            print("            " + str(keycount) + "  " +  k2 + ": " + str(v2))
-
-                                                                            if k2 == "language":
-                                                                                repolanguagelist.append(str(v2))
-                                                                                repocsvrow.append(str(v2))
-
-                                                                            elif k2 == "license":
-                                                                                if v2 == "None":
-                                                                                    license = "None"
-                                                                                    repolicenselist.append("None")
-                                                                                    repocsvrow.append("None")
-                                                                                else:
-                                                                                    repolicenselist.append(v2['name'])
-                                                                                    repocsvrow.append(v2['name'])
-                                                                                    license = v2['name']
-
-                                                                            elif k2 == "stargazers_count":
-                                                                                repostargazerlist.append(v2)
-                                                                                repocsvrow.append(v2)
-
-                                                                            elif k2 == "watchers_count":
-                                                                                repowatcherlist.append(v2)
-
-                                                                                repocsvrow.append(v2)
-
-                                                                            elif k2 == "forks":
-                                                                                repoforklist.append(v2)
-
-                                                                                repocsvrow.append(v2)
-
-                                                                            else:
-                                                                                repocsvrow.append(v2)
-
-                                                                    except:
-                                                                        pass
-
-                                                            print(str(len(repocsvrow)) + "   " + str(repocsvrow))
-
-                                                            #if licensing information not provided, add default license value of ""
-                                                            if len(repocsvrow) < 21:
-                                                                repocsvrow.insert(15,license)
-                                                            if contents:
-                                                                try:
-                                                                    contents_url = repo["url"].rstrip("/") + "/contents"
-                                                                    contents_data = github_request(
-                                                                        contents_url,
-                                                                        headers={
-                                                                            "X-GitHub-Api-Version": "2022-11-28",
-                                                                            "Authorization": "Bearer " + config['githubtoken'],
-                                                                            "Accept": "application/vnd.github+json"
-                                                                        }
-                                                                    )
-                                                                    contents_list = json.loads(contents_data.content.decode("utf-8"))
-                                                                    
-                                                                    file_names = [item['name'] for item in contents_list if item['type'] == 'file']
-                                                                    file_names_str = "; ".join(file_names)
-                                                                    extensions = []
-                                                                    for name in file_names:
-                                                                        if name.startswith(".") and name.count(".") == 1:
-                                                                            # handles dotfiles like .gitignore
-                                                                            extensions.append(name)
-                                                                        else:
-                                                                            _, ext = os.path.splitext(name)
-                                                                            if ext:
-                                                                                extensions.append(ext)
-
-                                                                    unique_extensions = sorted(set(extensions))
-                                                                    extensions_str = "; ".join(unique_extensions)
-
-                                                                    file_count = len(file_names_str.split(";"))
-                                                                    file_sizes_sum = sum(item['size'] for item in contents_list if item['type'] == 'file')
-
-                                                                    contains_readme = "readme" in file_names_str.lower()
-                                                                    contains_contributing = "contributing" in file_names_str.lower()
-                                                                    contains_code_of_conduct = "conduct" in file_names_str.lower() #check sensitivity
-
-                                                                    repocsvrow.append(file_names_str)
-                                                                    repocsvrow.append(extensions_str)
-                                                                    repocsvrow.append(file_count)
-                                                                    repocsvrow.append(file_sizes_sum)
-                                                                    repocsvrow.append(contains_readme)
-                                                                    repocsvrow.append(contains_contributing)
-                                                                    repocsvrow.append(contains_code_of_conduct)
-
-                                                                except Exception as e:
-                                                                    print(f"    Error fetching contents: {e}")
-                                                            
-                                                            finalgithubrepodetailscsvrows.append(repocsvrow)
-                                                        print("\n\n")
-
-                                                except Exception as e:
-                                                    print(str(e))
-
-                                    print()
-
-                                # if k == "organizations_url":
-                                #     try:
-                                #         orgsqueryurl = v
-                                #         orgsdata = requests.get(orgsqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken']})
-                                #         orgsdatalist = json.loads(orgsdata.content.decode("latin-1"))
-                                #         for org in list(orgsdatalist):
-                                #             for k2, v2 in org.items():
-                                #                 print("      " + k2 + ": " + str(v2))
-                                #             print()
-                                #
-                                #
-                                #     except Exception as e:
-                                #         print(str(e))
-
-                                # if k == "starred_url":
-                                #     starredqueryurl = v
-                                #     starreddata = requests.get(starredqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
-                                #     starreddatalist = json.loads(starreddata.content.decode("latin-1"))
-                                #
-                                #     for starred in list(starreddatalist):
-                                #         for k2, v2 in starred.items():
-                                #             print("   " + k2 + ": " + str(v2))
-                                #         print()
-
-                                # if k == "followers_url":
-                                #     followersqueryurl = v
-                                #     followersdata = requests.get(followersqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
-                                #     followersdatalist = json.loads(followersdata.content.decode("latin-1"))
-                                #
-                                #     for follower in list(followersdatalist):
-                                #         for k2, v2 in follower.items():
-                                #             print("   " + k2 + ": " + str(v2))
-                                #         print()
-
-                                # if k == "following_url":
-                                #     followingqueryurl = v
-                                #     followingdata = requests.get(followingqueryurl, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
-                                #     followingdatalist = json.loads(followingdata.content.decode("latin-1"))
-                                #
-                                #     for following in list(followingdatalist):
-                                #         for k2, v2 in following.items():
-                                #             print("   " + k2 + ": " + str(v2))
-                                #         print()
-
-                        if not useralreadyfound:
-                            csvrowdictionary['query'] = query
-                            csvrowdictionary['querydate'] = datetime.now().strftime("%Y-%m-%d")
-                            csvrowdictionarylist.append(csvrowdictionary)
-
-                        print("\n\n\n")
+                    if not useralreadyfound:
+                        csvrowdictionary['query'] = query
+                        csvrowdictionary['querydate'] = datetime.now().strftime("%Y-%m-%d")
+                        csvrowdictionarylist.append(csvrowdictionary)
+                    csvrowdictionarylist_affiliated = [entry for entry in csvrowdictionarylist if entry.get('isAffiliated') == True]
 
             except Exception as e:
                 print("ERROR: " + str(e))
 
     except Exception as e:
-        print("ERROR: " + str(e))
+            print("ERROR: " + str(e))
+
+if onlyAffiliated:
+    csvrowdictionary_focal = csvrowdictionarylist_affiliated
+else:
+    csvrowdictionary_focal = csvrowdictionarylist
+
+for entry in csvrowdictionary_focal:
+    account = entry.get("repos_url")
+    if account:
+        try:
+            reposdatalist = get_all_repositories(account, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+            for reponum, repo in enumerate(reposdatalist):
+                keycount = 0
+                print("       Data for repo #" + str(reponum + 1) + " out of " + str(len(reposdatalist)))
+                repocsvrow = []
+
+                processrepo = False
 
 
-for obj in csvrowdictionarylist:
+                yearofmostrecentupdate = int(repo["updated_at"].lower().split("t")[0].split("-")[0])
+                monthofmostrecentupdate = int(repo["updated_at"].lower().split("t")[0].split("-")[1])
+                dayofmostrecentupdate = int(repo["updated_at"].lower().split("t")[0].split("-")[2])
+
+                # Example time: 2021-04-24T15:13:29Z
+                datetimeofmostrecentupdate = datetime.strptime(repo["updated_at"], '%Y-%m-%dT%H:%M:%SZ')
+
+                monthssincemostrecentupdate = (float(relativedelta(datetime.now(), datetimeofmostrecentupdate).years)*12) + float(relativedelta(datetime.now(), datetimeofmostrecentupdate).months)
+                print("       LAST UPDATE DATE: " + repo["updated_at"])
+                print("       REPO LAST UPDATED " + str(monthssincemostrecentupdate) + " MONTHS AGO")
+
+                if monthssincemostrecentupdate < config['githubrepolastupdatethresholdinmonths']:
+                    processrepo = True
+
+                    for k2, v2 in repo.items():
+
+                        if k2 in repocharacteristicstoprocess:
+
+                            try:
+                                license = ""
+
+
+
+                                if repo['html_url'] not in uniquerepolist:
+                                    keycount += 1
+
+                                    print("            " + str(keycount) + "  " +  k2 + ": " + str(v2))
+
+                                    if k2 == "language":
+                                        repolanguagelist.append(str(v2))
+                                        repocsvrow.append(str(v2))
+
+                                    elif k2 == "license":
+                                        if v2 == "None":
+                                            license = "None"
+                                            repolicenselist.append("None")
+                                            repocsvrow.append("None")
+                                        else:
+                                            repolicenselist.append(v2['name'])
+                                            repocsvrow.append(v2['name'])
+                                            license = v2['name']
+
+                                    elif k2 == "stargazers_count":
+                                        repostargazerlist.append(v2)
+                                        repocsvrow.append(v2)
+
+                                    elif k2 == "watchers_count":
+                                        repowatcherlist.append(v2)
+
+                                        repocsvrow.append(v2)
+
+                                    elif k2 == "forks":
+                                        repoforklist.append(v2)
+
+                                        repocsvrow.append(v2)
+
+                                    else:
+                                        repocsvrow.append(v2)
+
+                            except:
+                                pass
+
+                    print(str(len(repocsvrow)) + "   " + str(repocsvrow))
+
+                    #if licensing information not provided, add default license value of ""
+                    if len(repocsvrow) < 21:
+                        repocsvrow.insert(15,license)
+                    if contents:
+                        try:
+                            contents_url = repo["url"].rstrip("/") + "/contents"
+                            contents_data = github_request(
+                                contents_url,
+                                headers={
+                                    "X-GitHub-Api-Version": "2022-11-28",
+                                    "Authorization": "Bearer " + config['githubtoken'],
+                                    "Accept": "application/vnd.github+json"
+                                }
+                            )
+                            contents_list = json.loads(contents_data.content.decode("utf-8"))
+                            
+                            file_names = [item['name'] for item in contents_list if item['type'] == 'file']
+                            file_names_str = "; ".join(file_names)
+                            extensions = []
+                            for name in file_names:
+                                if name.startswith(".") and name.count(".") == 1:
+                                    # handles dotfiles like .gitignore
+                                    extensions.append(name)
+                                else:
+                                    _, ext = os.path.splitext(name)
+                                    if ext:
+                                        extensions.append(ext)
+
+                            unique_extensions = sorted(set(extensions))
+                            extensions_str = "; ".join(unique_extensions)
+
+                            file_count = len(file_names_str.split(";"))
+                            file_sizes_sum = sum(item['size'] for item in contents_list if item['type'] == 'file')
+
+                            contains_readme = "readme" in file_names_str.lower()
+                            contains_contributing = "contributing" in file_names_str.lower()
+                            contains_code_of_conduct = "conduct" in file_names_str.lower() #check sensitivity
+
+                            repocsvrow.append(file_names_str)
+                            repocsvrow.append(extensions_str)
+                            repocsvrow.append(file_count)
+                            repocsvrow.append(file_sizes_sum)
+                            repocsvrow.append(contains_readme)
+                            repocsvrow.append(contains_contributing)
+                            repocsvrow.append(contains_code_of_conduct)
+
+                        except Exception as e:
+                            print(f"    Error fetching contents: {e}")
+                    
+                    finalgithubrepodetailscsvrows.append(repocsvrow)
+                print("\n\n")
+
+        except Exception as e:
+            print(str(e))
+
+
+for obj in csvrowdictionary_focal:
     newrow = []
     for columnname in githubaccountdetailscsvcolumns:
         matchfound = False
@@ -710,12 +714,15 @@ for obj in csvrowdictionarylist:
             newrow.append("")
     finalgithubaccountdetailscsvrows.append(newrow)
 
-
-
 print("\n\n" + "preparing to generate " + config['githubaccountdetailscsvpath'])
 print("estimated valid rows to create in GitHub account details CSV: " + str(len(finalgithubaccountdetailscsvrows)))
 
-with open(config['githubaccountdetailscsvpath'],"w", newline="") as opencsv:
+if onlyAffiliated:
+    account_path = config['githubaccountdetailsfilteredcsvpath']
+else:
+    account_path = config['githubaccountdetailscsvpath']
+
+with open(account_path,"w", newline="") as opencsv:
 
     csvwriter = csv.writer(opencsv)
 
@@ -730,8 +737,6 @@ with open(config['githubaccountdetailscsvpath'],"w", newline="") as opencsv:
         except Exception as e:
             print("ERROR: " + str(e))
 
-
-
 print("\n\n" + "preparing to generate " + config['githubrepodetailscsvpath'])
 print("estimated valid rows to create in GitHub repo details CSV: " + str(len(finalgithubrepodetailscsvrows)))
 
@@ -739,7 +744,12 @@ topstarredrepos = []
 topwatchedrepos = []
 topforkedrepos = []
 
-with open(config['githubrepodetailscsvpath'],"w", newline="") as opencsv:
+if onlyAffiliated:
+    repo_path = config['githubrepodetailsfilteredcsvpath']
+else:
+    repo_path = config['githubrepodetailscsvpath']
+
+with open(repo_path,"w", newline="") as opencsv:
 
     csvwriter = csv.writer(opencsv)
 
@@ -803,6 +813,5 @@ for i in reversed(range(max(licensecountlist) + 1)):
         except Exception as e:
             print(str(e))
 
-print(f"\nRemaining GitHub API requests (5,000 per hour for API users): {latest_remaining}\n")
-
+print(f"\nRemaining GitHub API requests (out of 5,000/hour): {latest_remaining}\n")
 print(f"Time to run: {datetime.now() - startTime}\n")
