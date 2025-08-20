@@ -146,7 +146,7 @@ githubaccountdetailscsvcolumns.append("isAffiliated")
 
 
 if contents:
-    githubrepodetailscsvcolumns = ['name','full_name','html_url','repos_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues','files','extensions','file_count','file_size', 'readme', 'contributing', 'code_of_conduct']
+    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues','files','extensions','file_count','file_size', 'readme', 'contributing', 'code_of_conduct']
 else:
     githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues']
 
