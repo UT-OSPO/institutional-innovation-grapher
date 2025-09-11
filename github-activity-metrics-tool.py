@@ -100,7 +100,7 @@ startTime = datetime.now()
 querylist = []
 if test:
     querylist.append("texas+advanced+computing+center+in:bio&type=Users")
-    querylist.append("tacc+in:bio&type=Users")
+    # querylist.append("tacc+in:bio&type=Users")
 else:
     querylist.append("ut+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
     querylist.append("university+of+texas+at+austin+followers:>=" + str(config['minimumfollowers']) + "+repos:>=" + str(config['minimumrepos']))
@@ -146,9 +146,9 @@ githubaccountdetailscsvcolumns.append("isAffiliated")
 
 
 if contents:
-    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues','files','extensions','file_count','file_size', 'readme', 'contributing', 'code_of_conduct']
+    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','files','extensions','file_count','file_size', 'readme', 'contributing', 'code_of_conduct']
 else:
-    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks','visibility','open_issues']
+    githubrepodetailscsvcolumns = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks']
 
 
 uniquerepolist = []
@@ -156,7 +156,7 @@ uniquerepolist = []
 
 usercharacteristicstoprocess = ['login','id','avatar_url','url','html_url','name','company','blog','location','email','bio','public_repos','public_gists','followers','following','created_at','updated_at','organizations_url','type']
 
-repocharacteristicstoprocess = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','visibility','forks','topics','open_issues']
+repocharacteristicstoprocess = ['name','full_name','html_url','description','fork','created_at','updated_at','size','stargazers_count','watchers_count','language','forks_count','archived','disabled','open_issues_count','license','allow_forking','topics','forks']
 
 
 
@@ -570,82 +570,57 @@ for entry in csvrowdictionary_focal:
     account = entry.get("repos_url")
     if account:
         try:
-            reposdatalist = get_all_repositories(account, headers={"X-GitHub-Api-Version": "2022-11-28", "Authorization": "Bearer " + config['githubtoken'], "Accept": "application/vnd.github+json" })
+            reposdatalist = get_all_repositories(
+                account,
+                headers={
+                    "X-GitHub-Api-Version": "2022-11-28",
+                    "Authorization": "Bearer " + config['githubtoken'],
+                    "Accept": "application/vnd.github+json"
+                }
+            )
             for reponum, repo in enumerate(reposdatalist):
-                keycount = 0
                 print("       Data for repo #" + str(reponum + 1) + " out of " + str(len(reposdatalist)))
-                repocsvrow = []
-
-                processrepo = False
-
-
-                yearofmostrecentupdate = int(repo["updated_at"].lower().split("t")[0].split("-")[0])
-                monthofmostrecentupdate = int(repo["updated_at"].lower().split("t")[0].split("-")[1])
-                dayofmostrecentupdate = int(repo["updated_at"].lower().split("t")[0].split("-")[2])
-
-                # Example time: 2021-04-24T15:13:29Z
+                
+                # Calculate months since last update (unchanged logic)
                 datetimeofmostrecentupdate = datetime.strptime(repo["updated_at"], '%Y-%m-%dT%H:%M:%SZ')
-
-                monthssincemostrecentupdate = (float(relativedelta(datetime.now(), datetimeofmostrecentupdate).years)*12) + float(relativedelta(datetime.now(), datetimeofmostrecentupdate).months)
+                monthssincemostrecentupdate = (
+                    float(relativedelta(datetime.now(), datetimeofmostrecentupdate).years) * 12 +
+                    float(relativedelta(datetime.now(), datetimeofmostrecentupdate).months)
+                )
                 print("       LAST UPDATE DATE: " + repo["updated_at"])
                 print("       REPO LAST UPDATED " + str(monthssincemostrecentupdate) + " MONTHS AGO")
 
                 if monthssincemostrecentupdate < config['githubrepolastupdatethresholdinmonths']:
-                    processrepo = True
+                    # Build row by column list
+                    repocsvrow = []
+                    for col in githubrepodetailscsvcolumns:
+                        value = repo.get(col, "")
+                        if col == "license":
+                            if value is None or not isinstance(value, dict):
+                                repocsvrow.append("None")
+                                repolicenselist.append("None")
+                            else:
+                                repocsvrow.append(value.get("name", "Unknown"))
+                                repolicenselist.append(value.get("name", "Unknown"))
+                        elif col == "language":
+                            if isinstance(value, list):
+                                repocsvrow.append(", ".join(value))
+                                repolanguagelist.append(", ".join(value))
+                            else:
+                                repocsvrow.append(str(value))
+                                repolanguagelist.append(str(value))
+                        elif col == "topics":
+                            if isinstance(value, list):
+                                repocsvrow.append(", ".join(value))
+                            else:
+                                repocsvrow.append(str(value))
+                        else:
+                            repocsvrow.append(str(value))
+                    
+                    print(f"{len(repocsvrow)}   {repocsvrow}")
+                    # Here you would write repocsvrow to your CSV file
 
-                    for k2, v2 in repo.items():
 
-                        if k2 in repocharacteristicstoprocess:
-
-                            try:
-                                license = ""
-
-
-
-                                if repo['html_url'] not in uniquerepolist:
-                                    keycount += 1
-
-                                    print("            " + str(keycount) + "  " +  k2 + ": " + str(v2))
-
-                                    if k2 == "language":
-                                        repolanguagelist.append(str(v2))
-                                        repocsvrow.append(str(v2))
-
-                                    elif k2 == "license":
-                                        if v2 == "None":
-                                            license = "None"
-                                            repolicenselist.append("None")
-                                            repocsvrow.append("None")
-                                        else:
-                                            repolicenselist.append(v2['name'])
-                                            repocsvrow.append(v2['name'])
-                                            license = v2['name']
-
-                                    elif k2 == "stargazers_count":
-                                        repostargazerlist.append(v2)
-                                        repocsvrow.append(v2)
-
-                                    elif k2 == "watchers_count":
-                                        repowatcherlist.append(v2)
-
-                                        repocsvrow.append(v2)
-
-                                    elif k2 == "forks":
-                                        repoforklist.append(v2)
-
-                                        repocsvrow.append(v2)
-
-                                    else:
-                                        repocsvrow.append(v2)
-
-                            except:
-                                pass
-
-                    print(str(len(repocsvrow)) + "   " + str(repocsvrow))
-
-                    #if licensing information not provided, add default license value of ""
-                    if len(repocsvrow) < 21:
-                        repocsvrow.insert(15,license)
                     if contents:
                         try:
                             contents_url = repo["url"].rstrip("/") + "/contents"
@@ -752,7 +727,8 @@ else:
 with open(repo_path,"w", newline="") as opencsv:
 
     csvwriter = csv.writer(opencsv)
-
+    # for i, csvrow in enumerate(finalgithubrepodetailscsvrows[:5]):
+    #     print(f"Sample row {i}: {csvrow}")
     csvwriter.writerow(githubrepodetailscsvcolumns)
 
     for i, csvrow in enumerate(finalgithubrepodetailscsvrows):
