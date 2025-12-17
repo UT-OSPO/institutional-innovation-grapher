@@ -1,0 +1,23 @@
+.filters{
+/* display:none; */
+}
+
+.shiny-text-output{
+display:none;
+}
+
+thead{
+background-color:#aaaaaa;
+}
+
+th{
+background-color:#aaaaaa;
+}
+
+.action-button{
+background-color:#bf5700;
+color:#ffffff;
+font-weight:bold;
+margin:10px;
+padding:5px 5px 5px 5px;
+}

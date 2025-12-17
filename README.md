@@ -1,6 +1,9 @@
 # Institutional Innovation Grapher
 This repository contains scripts for collecting and analyzing data about open source activity associated with a university or institution.
 
+### 🛑 This project is no longer actively developed
+All issues and pull requests have been closed. Please refer to the README for next steps.
+
 ## Tools
 The vision for this repository is to build out a set of Python scripts that can effectively be utilized by open source program offices to gain a better understanding of their specific institution. See details below about specific tools.
 
@@ -35,11 +38,39 @@ Once this repo is cloned locally, the template.env file should be renamed to jus
 * detaillevel:  "fulldetail" or "limiteddetail" - this controls whether the email, company, and bio fields will be filled in in the results CSV
 * plotformat:   The image format extension to export graphs from the *github-data-visualizer.py* script (e.g., "png", "tiff", "jpeg")
 
+### Publishing Results Data as Interactive Table Shiny App
+
+`command for deploying app`
+`rsconnect deploy shiny /path/to/app --name <NAME> --title my-app`
+`rsconnect deploy shiny "C:/Users/mgs2896/OneDrive - The University of Texas at Austin/Documents/scripts/shiny-practice/" --name researchdata --title practice`
+
+
 ### Rate limiting
 The GitHub API limits requests to the Search API at a rate of 30 per minute and limits requests to most other endpoints at a rate of 5,000 per minute. The number of remaining requests and the time until the cap is 'reset' are included in the API response header. Whether you will hit this rate limit will be institutionally dependent, but it is reasonable to expect that any R1 of a comparable size to UT Austin will hit the limit. The function to make API requests has built-in functionality to make conditional delays and/or conditional, manually prescribed rate limiting. You can also implement rate limiting from the start with the *ratelimiting* parameter. Some of this functionality is still in development to optimize, but the underlying functionality is not affected. 
+
+
+### Deploying Python Shiny app to Display Data in Interactive Table
+
+####Install rsconnect 
+pip install rsconnect-python
+
+####Create a shinyapps account 
+Visit http://www.shinyapps.io/ and log in to your existing account or create a new account
+
+#### Configure the rsconnect-python package to use your shinyapps account
+Retrieve your token from the shinyapps.io dashboard by selecting the Tokens option in the menu at the top right of the shinyapps dashboard then run the following command in the command prompt or terminal. 
+
+    rsconnect add --account <ACCOUNT> --name <NAME> --token <TOKEN> --secret <SECRET>
+
+Note: if you click the "Show" button on the "Token" page you can see the rsconnect add command below pre-populated with your specific account information instead of placeholder values. A more detailed overview of this process can be found in the shiny apps documentation at https://docs.posit.co/shinyapps.io/guide/getting_started/. 
+
+#### Deploy the app
+COMMAND FORMULA: rsconnect deploy shiny "/path/to/app" --name <NAME> --title affiliated-os-project-data.py
+EXAMPLE: rsconnect deploy shiny "C:/Users/exampleuser/Documents/scripts/shiny-practice/" --name researchdata --title practice -->
+
 
 ## Contact
 For any questions about this repository, please contact the UT Austin Open Source Program Office at ospo@utlists.utexas.edu.
 
 ## Last updated
-2025-09-11
+2025-12-5
