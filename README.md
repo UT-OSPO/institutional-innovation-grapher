@@ -45,23 +45,22 @@ The GitHub API limits requests to the Search API at a rate of 30 per minute and 
 
 ## Deploying Python Shiny app to Display Data in Interactive Table
 
-###Install rsconnect 
-`pip install rsconnect-python`
+### Install rsconnect 
+`pip install rsconnect-python`  
 
-###Create a shinyapps account 
-Visit http://www.shinyapps.io/ and log in to your existing account or create a new account
+### Create a shinyapps account 
+Visit http:// w.shinyapps.io/ and log in to your existing account or create a new account  
 
 ### Configure the rsconnect-python package to use your shinyapps account
-Retrieve your token from the shinyapps.io dashboard by selecting the Tokens option in the menu at the top right of the shinyapps dashboard then run the following command in the command prompt or terminal. 
-
-    `rsconnect add --account <ACCOUNT> --name <NAME> --token <TOKEN> --secret <SECRET>`
-
-Note: if you click the "Show" button on the "Token" page you can see the rsconnect add command below pre-populated with your specific account information instead of placeholder values. A more detailed overview of this process can be found in the shiny apps documentation at https://docs.posit.co/shinyapps.io/guide/getting_started/. 
+Retrieve your token from the shinyapps.io dashboard by selecting the Tokens option in the menu at the top right of the shinyapps dashboard then run the following command in the command prompt or terminal.  
+  
+    `rsconnect add --account <ACCOUNT> --name <NAME> --token <TOKEN> --secret <SECRET>`  
+  
+Note: if you click the "Show" button on the "Token" page you can see the rsconnect add command below pre-populated with your specific account information instead of placeholder values. A more detailed overview of this process can be found in the shiny apps documentation at https://docs.posit.co/shinyapps.io/guide/getting_started/.  
 
 ### Deploy the app
-COMMAND FORMULA: `rsconnect deploy shiny "/path/to/app" --name <NAME> --title affiliated-os-project-data.py`
-EXAMPLE: `rsconnect deploy shiny "C:/Users/exampleuser/Documents/scripts/shiny-practice/" --name researchdata --title practice`
-
+COMMAND FORMULA: `rsconnect deploy shiny "/path/to/app" --name <NAME> --title affiliated-os-project-data.py`  
+EXAMPLE: `rsconnect deploy shiny "C:/Users/exampleuser/Documents/scripts/shiny-practice/" --name researchdata --title practice`  
 
 ## Contact
 For any questions about this repository, please contact the UT Austin Open Source Program Office at ospo@utlists.utexas.edu.
