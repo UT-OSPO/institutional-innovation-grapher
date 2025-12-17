@@ -59,11 +59,11 @@ Retrieve your token from the shinyapps.io dashboard by selecting the Tokens opti
 Note: if you click the "Show" button on the "Token" page you can see the rsconnect add command below pre-populated with your specific account information instead of placeholder values. A more detailed overview of this process can be found in the shiny apps documentation at https://docs.posit.co/shinyapps.io/guide/getting_started/.  
 
 ### Deploy the app
-COMMAND FORMULA: `rsconnect deploy shiny "/path/to/app" --name <NAME> --title affiliated-os-project-data.py`  
-EXAMPLE: `rsconnect deploy shiny "C:/Users/exampleuser/Documents/scripts/shiny-practice/" --name researchdata --title practice`  
+COMMAND FORMULA: `rsconnect deploy shiny "/path/to/app" --name <NAME> --title affiliated-os-project-data`  
+EXAMPLE: `rsconnect deploy shiny "C:/Users/exampleuser/Documents/scripts/institutional-innovation-grapher/shiny-app" --name yourshinyaccountname --title yourappname`  
 
 ## Contact
 For any questions about this repository, please contact the UT Austin Open Source Program Office at ospo@utlists.utexas.edu.
 
 ## Last updated
-2025-12-5
+2025-12-16
